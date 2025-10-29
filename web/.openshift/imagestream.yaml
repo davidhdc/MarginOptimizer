@@ -1,0 +1,10 @@
+apiVersion: image.openshift.io/v1
+kind: ImageStream
+metadata:
+  name: margin-optimizer-web
+  namespace: margin-optimizer
+  labels:
+    app: margin-optimizer-web
+spec:
+  lookupPolicy:
+    local: false

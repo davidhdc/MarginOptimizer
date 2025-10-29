@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Margin Optimizer{% endblock %}</title>
+
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/">
+                <i class="fas fa-chart-line"></i> Margin Optimizer
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/">
+                            <i class="fas fa-home"></i> Home
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" data-bs-toggle="modal" data-bs-target="#helpModal">
+                            <i class="fas fa-question-circle"></i> Help
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="container-fluid py-4">
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Help Modal -->
+    <div class="modal fade" id="helpModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-question-circle"></i> How to Use Margin Optimizer
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <h6><i class="fas fa-search"></i> Analyzing a Service</h6>
+                    <ol>
+                        <li>Enter a <strong>Service ID</strong> (e.g., RNG.5511.D023)</li>
+                        <li>Click <strong>"Analyze Service"</strong></li>
+                        <li>Review all vendor quotes and VPL options</li>
+                    </ol>
+
+                    <h6 class="mt-4"><i class="fas fa-bullseye"></i> Getting Negotiation Strategy</h6>
+                    <ol>
+                        <li>Click <strong>"View Strategy"</strong> on any vendor quote</li>
+                        <li>Review negotiation history and recommendations</li>
+                        <li>Use suggested arguments in your negotiation</li>
+                    </ol>
+
+                    <h6 class="mt-4"><i class="fas fa-info-circle"></i> Understanding GM Status</h6>
+                    <ul>
+                        <li><span class="badge bg-success">Green</span> - GM ≥ 50% (Excellent)</li>
+                        <li><span class="badge bg-warning">Yellow</span> - GM 40-49% (Acceptable)</li>
+                        <li><span class="badge bg-danger">Red</span> - GM < 40% (Needs Action)</li>
+                    </ul>
+
+                    <h6 class="mt-4"><i class="fas fa-lightbulb"></i> Tips</h6>
+                    <ul>
+                        <li>Use VPL arguments - they're the strongest (vendor's published prices)</li>
+                        <li>Check negotiation history to gauge probability of success</li>
+                        <li>Consider alternatives but factor in implementation time</li>
+                    </ul>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="bg-light text-center py-3 mt-5">
+        <div class="container">
+            <span class="text-muted">
+                Margin Optimizer v1.0 |
+                <i class="fas fa-bullseye"></i> Target GM: 55% |
+                <i class="fas fa-chart-line"></i> Min Acceptable: 50%
+            </span>
+        </div>
+    </footer>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    <!-- jQuery (for easier DOM manipulation) -->
+    <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
+
+    <!-- Custom JS -->
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

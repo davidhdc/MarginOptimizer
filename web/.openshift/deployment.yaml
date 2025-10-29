@@ -1,0 +1,86 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: margin-optimizer-web
+  namespace: margin-optimizer
+  labels:
+    app: margin-optimizer-web
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: margin-optimizer-web
+  template:
+    metadata:
+      labels:
+        app: margin-optimizer-web
+    spec:
+      containers:
+      - name: margin-optimizer-web
+        image: image-registry.openshift-image-registry.svc:5000/margin-optimizer/margin-optimizer-web:latest
+        ports:
+        - containerPort: 5000
+          protocol: TCP
+        env:
+        - name: NEO4J_URI
+          valueFrom:
+            secretKeyRef:
+              name: neo4j-credentials
+              key: uri
+        - name: NEO4J_USER
+          valueFrom:
+            secretKeyRef:
+              name: neo4j-credentials
+              key: user
+        - name: NEO4J_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: neo4j-credentials
+              key: password
+        - name: NEO4J_DATABASE
+          valueFrom:
+            secretKeyRef:
+              name: neo4j-credentials
+              key: database
+        - name: QUICKBASE_API_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: quickbase-credentials
+              key: api-token
+        - name: QUICKBASE_REALM
+          valueFrom:
+            secretKeyRef:
+              name: quickbase-credentials
+              key: realm
+        - name: VPL_API_URL
+          valueFrom:
+            secretKeyRef:
+              name: vpl-credentials
+              key: api-url
+        - name: EXCHANGE_RATE_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: exchange-rate-credentials
+              key: api-key
+              optional: true
+        resources:
+          limits:
+            cpu: "1"
+            memory: 1Gi
+          requests:
+            cpu: 200m
+            memory: 256Mi
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 5000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 5000
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3

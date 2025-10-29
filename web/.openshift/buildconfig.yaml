@@ -1,0 +1,28 @@
+apiVersion: build.openshift.io/v1
+kind: BuildConfig
+metadata:
+  name: margin-optimizer-web
+  namespace: margin-optimizer
+  labels:
+    app: margin-optimizer-web
+spec:
+  output:
+    to:
+      kind: ImageStreamTag
+      name: margin-optimizer-web:latest
+  source:
+    type: Git
+    git:
+      uri: https://github.com/davidhdc/MarginOptimizer.git
+      ref: main
+    contextDir: web
+  strategy:
+    type: Docker
+    dockerStrategy:
+      dockerfilePath: Dockerfile
+  triggers:
+    - type: ConfigChange
+    - type: GitHub
+      github:
+        secretReference:
+          name: github-webhook-secret-web
