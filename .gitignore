@@ -43,8 +43,3 @@ flask_server.log
 # OS
 .DS_Store
 Thumbs.db
-
-# Symlinks (will be recreated)
-connectors
-utils
-config.py
