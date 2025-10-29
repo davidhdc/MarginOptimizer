@@ -4,7 +4,7 @@ Strategy endpoints
 from fastapi import APIRouter, HTTPException, Depends, status
 from models.schemas import StrategyResponse, ErrorResponse
 from services.strategy_service import StrategyService
-from config.security import verify_api_key
+from api_config.security import verify_api_key
 
 router = APIRouter(
     prefix="/api/v1",
