@@ -8,14 +8,14 @@ from api_config.security import verify_api_key
 
 router = APIRouter(
     prefix="/api/v1",
-    tags=["strategies"],
-    dependencies=[Depends(verify_api_key)]
+    tags=["strategies"]
 )
 
 
 @router.get(
     "/strategies/{service_id}",
     response_model=StrategyResponse,
+    dependencies=[Depends(verify_api_key)],
     responses={
         200: {"description": "Strategies generated successfully"},
         401: {"model": ErrorResponse, "description": "Invalid or missing API Key"},
