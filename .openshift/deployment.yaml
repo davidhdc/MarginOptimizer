@@ -1,0 +1,75 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: margin-optimizer-api
+  namespace: margin-optimizer
+  labels:
+    app: margin-optimizer-api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: margin-optimizer-api
+  template:
+    metadata:
+      labels:
+        app: margin-optimizer-api
+    spec:
+      containers:
+      - name: margin-optimizer-api
+        image: image-registry.openshift-image-registry.svc:5000/margin-optimizer/margin-optimizer-api:latest
+        ports:
+        - containerPort: 8000
+          protocol: TCP
+        env:
+        - name: MARGIN_OPTIMIZER_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: api-secrets
+              key: api-key
+        - name: NEO4J_URI
+          valueFrom:
+            secretKeyRef:
+              name: neo4j-credentials
+              key: uri
+        - name: NEO4J_USER
+          valueFrom:
+            secretKeyRef:
+              name: neo4j-credentials
+              key: user
+        - name: NEO4J_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: neo4j-credentials
+              key: password
+        - name: QUICKBASE_REALM
+          valueFrom:
+            secretKeyRef:
+              name: quickbase-credentials
+              key: realm
+        - name: QUICKBASE_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: quickbase-credentials
+              key: token
+        - name: VPL_API_BASE_URL
+          value: "https://igiq-api.ignetworks.com"
+        resources:
+          limits:
+            cpu: "1"
+            memory: "1Gi"
+          requests:
+            cpu: "250m"
+            memory: "512Mi"
+        livenessProbe:
+          httpGet:
+            path: /api/v1/health
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /api/v1/health
+            port: 8000
+          initialDelaySeconds: 10
+          periodSeconds: 5

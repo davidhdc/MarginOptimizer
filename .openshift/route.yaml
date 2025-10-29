@@ -1,0 +1,19 @@
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: margin-optimizer-api
+  namespace: margin-optimizer
+  labels:
+    app: margin-optimizer-api
+spec:
+  host: margin-optimizer-api.apps.okd.os.ignetworks.com
+  to:
+    kind: Service
+    name: margin-optimizer-api
+    weight: 100
+  port:
+    targetPort: 8000-tcp
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
+  wildcardPolicy: None
