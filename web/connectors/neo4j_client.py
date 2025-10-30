@@ -579,7 +579,7 @@ class Neo4jClient:
                 LIMIT $limit
             """
 
-            results = self.execute_cypher(query, search_term=search_term, limit=limit)
+            results = self.execute_cypher(query, {"search_term": search_term, "limit": limit})
 
             vendor_names = [r['vendor_name'] for r in results if r.get('vendor_name')]
             return vendor_names
@@ -616,7 +616,7 @@ class Neo4jClient:
                 LIMIT $limit
             """
 
-            results = self.execute_cypher(query, vendor_name=vendor_name, limit=limit)
+            results = self.execute_cypher(query, {"vendor_name": vendor_name, "limit": limit})
 
             contracts = []
             for r in results:
