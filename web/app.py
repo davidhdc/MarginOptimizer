@@ -411,6 +411,232 @@ def api_analyze():
         return jsonify({'error': str(e)}), 500
 
 
+
+@app.route('/api/analyze-renewal', methods=['POST'])
+def api_analyze_renewal():
+    """API endpoint to analyze a service for renewal negotiation"""
+    try:
+        data = request.json
+        service_id = data.get('service_id', '').strip()
+
+        if not service_id:
+            return jsonify({'error': 'Service ID is required'}), 400
+
+        # Initialize clients
+        init_clients()
+
+        # Get service details from Neo4j
+        service = neo4j_client.get_service_details(service_id)
+
+        if not service:
+            return jsonify({'error': f'Service {service_id} not found'}), 404
+
+        # Get VOC Line data (current vendor and margin)
+        voc_line = qb_client.get_voc_line_by_service(service_id)
+        
+        if not voc_line.get('has_data'):
+            return jsonify({'error': f'No VOC Line found for service {service_id}'}), 404
+
+        current_vendor = voc_line['vendor_name']
+        current_mrc = voc_line['mrc_usd']
+        current_gm = voc_line['gm_percent']
+        
+        # Get service currency and client MRC
+        service_currency = service.get('service_currency', 'USD')
+        client_mrc = service.get('client_mrc', 0)
+        
+        # Get renewal statistics for current vendor
+        renewal_stats = qb_client.get_vendor_renewal_stats(current_vendor)
+        
+        # Get detailed renewal history for this vendor
+        renewal_history = qb_client.get_renewal_history_by_vendor(current_vendor, service_id)
+        
+        # Get negotiation stats for current vendor (from VQ creation)
+        negotiation_stats = qb_client.get_vendor_negotiation_stats(current_vendor)
+        
+        # Get vendor quotes (nearby and VPL options)
+        vendor_quotes = neo4j_client.get_vendor_quotes_for_service(
+            service_id,
+            include_nearby=True,
+            radius_meters=10000
+        )
+        
+        nearby = vendor_quotes.get('nearby', [])
+        vpl = vendor_quotes.get('vpl', [])
+        
+        # Build response
+        response = {
+            'service': {
+                'service_id': service['service_id'],
+                'customer': service['customer'],
+                'bandwidth_display': service['bandwidth_display'],
+                'client_mrc': client_mrc,
+                'currency': service_currency,
+                'address': service['address'][:100] if service['address'] else 'N/A',
+                'latitude': service['latitude'],
+                'longitude': service['longitude']
+            },
+            'voc_line': {
+                'record_id': voc_line['record_id'],
+                'vendor_name': current_vendor,
+                'current_mrc': current_mrc,
+                'current_gm_percent': current_gm,
+                'current_gm_usd': voc_line['gm_usd'],
+                'status': voc_line['status'],
+                'bandwidth': voc_line['bandwidth'],
+                'service_type': voc_line['service_type'],
+                'lead_time': voc_line['lead_time'],
+                'nrc_usd': voc_line['nrc_usd']
+            },
+            'current_vendor_stats': {
+                'renewal_stats': None,
+                'negotiation_stats': None,
+                'renewal_history': []
+            },
+            'nearby_quotes': [],
+            'vpl_options': [],
+            'recommendations': []
+        }
+        
+        # Add renewal stats if available
+        if renewal_stats and renewal_stats.get('has_data'):
+            response['current_vendor_stats']['renewal_stats'] = {
+                'total_renewals': renewal_stats['total_renewals'],
+                'successful_renewals': renewal_stats['successful_renewals'],
+                'success_rate': round(renewal_stats['success_rate'], 1),
+                'avg_discount': round(renewal_stats['avg_discount'], 1)
+            }
+        
+        # Add negotiation stats if available
+        if negotiation_stats and negotiation_stats.get('has_data'):
+            response['current_vendor_stats']['negotiation_stats'] = {
+                'total_negotiations': negotiation_stats['total_negotiations'],
+                'successful_negotiations': negotiation_stats['successful_negotiations'],
+                'success_rate': round(negotiation_stats['success_rate'], 1),
+                'avg_discount': round(negotiation_stats['avg_discount'], 1)
+            }
+        
+        # Add renewal history
+        if renewal_history.get('has_data'):
+            response['current_vendor_stats']['renewal_history'] = renewal_history['renewals'][:10]  # Last 10
+        
+        # Process nearby quotes (same vendor, different services)
+        nearby = convert_neo4j_types(nearby)
+        for vq in nearby:
+            if vq.get('distance_meters', 0) > 5000:  # 5km for renewals
+                continue
+            
+            if vq.get('vendor_name') != current_vendor:
+                continue  # Only show same vendor
+            
+            vq_mrc = vq.get('mrc', 0)
+            gm = ((client_mrc - vq_mrc) / client_mrc * 100) if client_mrc > 0 else 0
+            
+            response['nearby_quotes'].append({
+                'service_id': vq.get('service_id'),
+                'mrc': round(vq_mrc, 2),
+                'gm': round(gm, 1),
+                'distance_meters': round(vq.get('distance_meters', 0)),
+                'date_created': vq.get('date_created')
+            })
+        
+        # Process VPL options for current vendor
+        service_is_usd = (service_currency == 'USD')
+        if not service_is_usd:
+            from utils.currency import get_usd_to_brl_rate
+            vpl_exchange_rate = get_usd_to_brl_rate()
+        else:
+            vpl_exchange_rate = None
+        
+        for v in vpl:
+            if v.get('vendor_name') != current_vendor:
+                continue  # Only show current vendor VPL
+            
+            vpl_mrc_usd = v.get('mrc', 0)
+            
+            if service_is_usd:
+                vpl_mrc = vpl_mrc_usd
+            else:
+                vpl_mrc = vpl_mrc_usd * vpl_exchange_rate
+            
+            gm = ((client_mrc - vpl_mrc) / client_mrc * 100) if client_mrc > 0 and vpl_mrc > 0 else 0
+            
+            bw_bps = v.get('bandwidth_bps')
+            bw_display = f"{bw_bps / 1_000_000:.0f} Mbps" if bw_bps else v.get('bandwidth', 'N/A')
+            
+            response['vpl_options'].append({
+                'bandwidth': bw_display,
+                'bandwidth_bps': bw_bps,
+                'mrc': round(vpl_mrc, 2),
+                'mrc_currency': service_currency,
+                'nrc': v.get('nrc', 0),
+                'gm': round(gm, 1),
+                'gm_status': 'success' if gm >= 50 else 'warning' if gm >= 40 else 'danger',
+                'service_type': v.get('service_type', 'N/A')
+            })
+        
+        # Generate renewal recommendations
+        recommendations = []
+        
+        # Recommendation 1: Based on renewal history success rate
+        if renewal_stats and renewal_stats.get('has_data'):
+            if renewal_stats['success_rate'] >= 50:
+                expected_discount = renewal_stats['avg_discount']
+                expected_mrc = current_mrc * (1 - expected_discount/100)
+                expected_gm = ((client_mrc - expected_mrc) / client_mrc * 100) if client_mrc > 0 else 0
+                
+                recommendations.append({
+                    'priority': 1,
+                    'strategy': f"Negotiate renewal with {current_vendor}",
+                    'rationale': f"High renewal success rate ({renewal_stats['success_rate']:.1f}%) with average {renewal_stats['avg_discount']:.1f}% discount",
+                    'expected_discount': round(expected_discount, 1),
+                    'expected_mrc': round(expected_mrc, 2),
+                    'expected_gm': round(expected_gm, 1),
+                    'confidence': 'high' if renewal_stats['success_rate'] >= 70 else 'medium'
+                })
+            else:
+                recommendations.append({
+                    'priority': 1,
+                    'strategy': f"Consider alternative vendors",
+                    'rationale': f"Low renewal success rate with {current_vendor} ({renewal_stats['success_rate']:.1f}%)",
+                    'confidence': 'medium'
+                })
+        
+        # Recommendation 2: Based on VPL availability
+        if response['vpl_options']:
+            best_vpl = min(response['vpl_options'], key=lambda x: x['mrc'])
+            if best_vpl['mrc'] < current_mrc:
+                savings = current_mrc - best_vpl['mrc']
+                savings_pct = (savings / current_mrc * 100) if current_mrc > 0 else 0
+                
+                recommendations.append({
+                    'priority': 2,
+                    'strategy': f"Request VPL pricing from {current_vendor}",
+                    'rationale': f"VPL available at ${best_vpl['mrc']:.2f} ({best_vpl['bandwidth']}) - {savings_pct:.1f}% lower than current MRC",
+                    'expected_mrc': best_vpl['mrc'],
+                    'expected_gm': best_vpl['gm'],
+                    'confidence': 'high'
+                })
+        
+        # Recommendation 3: Market comparison
+        if current_gm < 40:
+            recommendations.append({
+                'priority': 3,
+                'strategy': "Evaluate alternative vendors",
+                'rationale': f"Current gross margin ({current_gm:.1f}%) is below target (40%)",
+                'confidence': 'medium'
+            })
+        
+        response['recommendations'] = sorted(recommendations, key=lambda x: x['priority'])
+        
+        return jsonify(response)
+
+    except Exception as e:
+        print(f"Error in api_analyze_renewal: {e}")
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/api/strategy/<service_id>/<int:vq_qb_id>', methods=['GET', 'POST'])
 def api_strategy(service_id, vq_qb_id):
     """API endpoint to get negotiation strategy for specific VQ"""

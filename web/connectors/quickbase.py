@@ -508,3 +508,157 @@ class QuickbaseClient:
                 'total_mrc_usd': 0,
                 'delivered_count': 0
             }
+    def get_voc_line_by_service(self, service_id: str) -> Dict:
+        """
+        Get VOC Line data for renewal analysis by Service ID
+        
+        Uses table bkr26d56f (VOC Lines) to get:
+        - Current vendor and MRC
+        - Service details
+        - Status
+        
+        Key fields:
+        - 6: Service ID
+        - 245: Vendor name
+        - 135: MRC (USD) Tax Included
+        - 254: VOC Line Status
+        - 180: Gross Margin %
+        - Many other fields for full context
+        """
+        voc_table_id = "bkr26d56f"
+        
+        # Query for VOC Lines matching this service
+        where_clause = f"{{6.EX.'{service_id}'}}"
+        
+        try:
+            payload = {
+                'from': voc_table_id,
+                'select': [
+                    3,    # Record ID
+                    6,    # Service ID  
+                    245,  # Vendor name
+                    135,  # MRC (USD) Tax Included
+                    254,  # VOC Line Status
+                    180,  # Gross Margin %
+                    179,  # Gross Margin (USD)
+                    246,  # Bandwidth
+                    247,  # Service Type
+                    248,  # Lead Time
+                    136,  # NRC (USD) Tax Included
+                ],
+                'where': where_clause,
+                'sortBy': [{'fieldId': 3, 'order': 'DESC'}]  # Most recent first
+            }
+            
+            response = requests.post(
+                f'{self.base_url}/v1/records/query',
+                headers=self.headers,
+                json=payload
+            )
+            
+            if response.status_code == 200:
+                data = response.json()
+                records = data.get('data', [])
+                
+                if records:
+                    # Get the most recent VOC Line (first in sorted results)
+                    voc = records[0]
+                    fields = voc.get('fields', {})
+                    
+                    return {
+                        'has_data': True,
+                        'record_id': fields.get('3', {}).get('value'),
+                        'service_id': fields.get('6', {}).get('value'),
+                        'vendor_name': fields.get('245', {}).get('value'),
+                        'mrc_usd': float(fields.get('135', {}).get('value', 0)),
+                        'status': fields.get('254', {}).get('value'),
+                        'gm_percent': float(fields.get('180', {}).get('value', 0)),
+                        'gm_usd': float(fields.get('179', {}).get('value', 0)),
+                        'bandwidth': fields.get('246', {}).get('value'),
+                        'service_type': fields.get('247', {}).get('value'),
+                        'lead_time': fields.get('248', {}).get('value'),
+                        'nrc_usd': float(fields.get('136', {}).get('value', 0))
+                    }
+                else:
+                    return {'has_data': False, 'error': 'No VOC Line found for this service'}
+            else:
+                print(f"Quickbase API error: {response.status_code}")
+                return {'has_data': False, 'error': f'API error: {response.status_code}'}
+                
+        except Exception as e:
+            print(f"Error getting VOC Line from Quickbase: {e}")
+            return {'has_data': False, 'error': str(e)}
+    
+    def get_renewal_history_by_vendor(self, vendor_name: str, service_id: str = None) -> Dict:
+        """
+        Get detailed renewal history for a vendor, optionally filtered by service
+        
+        Uses table bqrc5mm8e (Renewals) with fields:
+        - 14: Vendor name
+        - 3: Service ID (if filtering)
+        - 47: Final Discount (%)
+        - 72: VOC Line Renewal - Date Created
+        - Additional context fields
+        
+        Returns list of renewal records with details
+        """
+        renewals_table_id = "bqrc5mm8e"
+        
+        # Build query
+        if service_id:
+            where_clause = f"{{14.EX.'{vendor_name}'}}AND{{3.EX.'{service_id}'}}"
+        else:
+            where_clause = f"{{14.EX.'{vendor_name}'}}"
+        
+        try:
+            payload = {
+                'from': renewals_table_id,
+                'select': [
+                    3,    # Service ID
+                    14,   # Vendor name  
+                    47,   # Final Discount (%)
+                    72,   # VOC Line Renewal - Date Created
+                    45,   # Initial MRC (USD)
+                    46,   # Final MRC (USD)
+                ],
+                'where': where_clause,
+                'sortBy': [{'fieldId': 72, 'order': 'DESC'}]  # Most recent first
+            }
+            
+            response = requests.post(
+                f'{self.base_url}/v1/records/query',
+                headers=self.headers,
+                json=payload
+            )
+            
+            if response.status_code == 200:
+                data = response.json()
+                records = data.get('data', [])
+                
+                renewals = []
+                for rec in records:
+                    fields = rec.get('fields', {})
+                    discount = fields.get('47', {}).get('value', 0)
+                    
+                    renewals.append({
+                        'service_id': fields.get('3', {}).get('value'),
+                        'vendor_name': fields.get('14', {}).get('value'),
+                        'discount_percent': float(discount) * 100 if discount else 0,  # Convert to %
+                        'date_created': fields.get('72', {}).get('value'),
+                        'initial_mrc': float(fields.get('45', {}).get('value', 0)),
+                        'final_mrc': float(fields.get('46', {}).get('value', 0)),
+                        'was_successful': (discount and discount > 0)
+                    })
+                
+                return {
+                    'has_data': len(renewals) > 0,
+                    'count': len(renewals),
+                    'renewals': renewals
+                }
+            else:
+                print(f"Quickbase API error: {response.status_code}")
+                return {'has_data': False, 'count': 0, 'renewals': []}
+                
+        except Exception as e:
+            print(f"Error getting renewal history from Quickbase: {e}")
+            return {'has_data': False, 'count': 0, 'renewals': []}
