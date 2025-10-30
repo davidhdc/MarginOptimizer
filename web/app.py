@@ -540,31 +540,29 @@ def api_analyze_renewal():
                 'date_created': vq.get('date_created')
             })
         
-        # Process VPL options for current vendor
+        # Process VPL options - include ALL vendors at this location for renewal strategy
         service_is_usd = (service_currency == 'USD')
         if not service_is_usd:
             from utils.currency import get_usd_to_brl_rate
             vpl_exchange_rate = get_usd_to_brl_rate()
         else:
             vpl_exchange_rate = None
-        
+
         for v in vpl:
-            if v.get('vendor_name') != current_vendor:
-                continue  # Only show current vendor VPL
-            
             vpl_mrc_usd = v.get('mrc', 0)
-            
+
             if service_is_usd:
                 vpl_mrc = vpl_mrc_usd
             else:
                 vpl_mrc = vpl_mrc_usd * vpl_exchange_rate
-            
+
             gm = ((client_mrc - vpl_mrc) / client_mrc * 100) if client_mrc > 0 and vpl_mrc > 0 else 0
-            
+
             bw_bps = v.get('bandwidth_bps')
             bw_display = f"{bw_bps / 1_000_000:.0f} Mbps" if bw_bps else v.get('bandwidth', 'N/A')
-            
+
             response['vpl_options'].append({
+                'vendor_name': v.get('vendor_name', 'N/A'),
                 'bandwidth': bw_display,
                 'bandwidth_bps': bw_bps,
                 'mrc': round(vpl_mrc, 2),
@@ -572,7 +570,8 @@ def api_analyze_renewal():
                 'nrc': v.get('nrc', 0),
                 'gm': round(gm, 1),
                 'gm_status': 'success' if gm >= 50 else 'warning' if gm >= 40 else 'danger',
-                'service_type': v.get('service_type', 'N/A')
+                'service_type': v.get('service_type', 'N/A'),
+                'is_current_vendor': v.get('vendor_name') == current_vendor
             })
         
         # Generate renewal recommendations
@@ -602,28 +601,50 @@ def api_analyze_renewal():
                     'confidence': 'medium'
                 })
         
-        # Recommendation 2: Based on VPL availability
-        if response['vpl_options']:
-            best_vpl = min(response['vpl_options'], key=lambda x: x['mrc'])
-            if best_vpl['mrc'] < current_mrc:
-                savings = current_mrc - best_vpl['mrc']
+        # Recommendation 2: Based on VPL availability from current vendor
+        current_vendor_vpls = [v for v in response['vpl_options'] if v['is_current_vendor']]
+        if current_vendor_vpls:
+            best_current_vpl = min(current_vendor_vpls, key=lambda x: x['mrc'])
+            if best_current_vpl['mrc'] < current_mrc:
+                savings = current_mrc - best_current_vpl['mrc']
                 savings_pct = (savings / current_mrc * 100) if current_mrc > 0 else 0
-                
+
                 recommendations.append({
                     'priority': 2,
                     'strategy': f"Request VPL pricing from {current_vendor}",
-                    'rationale': f"VPL available at ${best_vpl['mrc']:.2f} ({best_vpl['bandwidth']}) - {savings_pct:.1f}% lower than current MRC",
-                    'expected_mrc': best_vpl['mrc'],
-                    'expected_gm': best_vpl['gm'],
-                    'confidence': 'high'
+                    'rationale': f"VPL available at {best_current_vpl['mrc']:.2f} {service_currency} ({best_current_vpl['bandwidth']}) - {savings_pct:.1f}% lower than current MRC",
+                    'expected_mrc': best_current_vpl['mrc'],
+                    'expected_gm': best_current_vpl['gm'],
+                    'confidence': 'high',
+                    'vendor_name': current_vendor
+                })
+
+        # Recommendation 3: Based on alternative vendor VPLs at same location
+        alternative_vendor_vpls = [v for v in response['vpl_options'] if not v['is_current_vendor']]
+        if alternative_vendor_vpls:
+            # Find best alternative VPL
+            best_alt_vpl = min(alternative_vendor_vpls, key=lambda x: x['mrc'])
+            if best_alt_vpl['mrc'] < current_mrc:
+                savings = current_mrc - best_alt_vpl['mrc']
+                savings_pct = (savings / current_mrc * 100) if current_mrc > 0 else 0
+
+                recommendations.append({
+                    'priority': 3,
+                    'strategy': f"Leverage {best_alt_vpl['vendor_name']} VPL as negotiation leverage",
+                    'rationale': f"Alternative vendor VPL at {best_alt_vpl['mrc']:.2f} {service_currency} ({best_alt_vpl['bandwidth']}) - {savings_pct:.1f}% lower. Use as leverage with {current_vendor} or consider switching",
+                    'expected_mrc': best_alt_vpl['mrc'],
+                    'expected_gm': best_alt_vpl['gm'],
+                    'confidence': 'medium',
+                    'vendor_name': best_alt_vpl['vendor_name'],
+                    'alternative_vendor': True
                 })
         
-        # Recommendation 3: Market comparison
-        if current_gm < 40:
+        # Recommendation 4: Market comparison - low margin alert
+        if current_gm < 40 and not alternative_vendor_vpls:
             recommendations.append({
-                'priority': 3,
+                'priority': 4,
                 'strategy': "Evaluate alternative vendors",
-                'rationale': f"Current gross margin ({current_gm:.1f}%) is below target (40%)",
+                'rationale': f"Current gross margin ({current_gm:.1f}%) is below target (40%). No VPL alternatives found at this location.",
                 'confidence': 'medium'
             })
         

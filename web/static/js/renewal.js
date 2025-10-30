@@ -229,37 +229,89 @@ function displayRenewalVplOptions(data) {
         return;
     }
 
-    let html = '<div class="table-responsive"><table class="table table-hover">';
-    html += `
-        <thead>
-            <tr>
-                <th>Bandwidth</th>
-                <th>MRC</th>
-                <th>NRC</th>
-                <th>Gross Margin</th>
-                <th>Service Type</th>
-            </tr>
-        </thead>
-        <tbody>
-    `;
+    // Separate current vendor and alternative vendors
+    const currentVendorVpls = vplOptions.filter(v => v.is_current_vendor);
+    const alternativeVendorVpls = vplOptions.filter(v => !v.is_current_vendor);
 
-    vplOptions.forEach(vpl => {
-        const gmClass = vpl.gm_status === 'success' ? 'success' :
-                       vpl.gm_status === 'warning' ? 'warning' : 'danger';
+    let html = '';
 
+    // Display current vendor VPLs first
+    if (currentVendorVpls.length > 0) {
+        html += '<h6 class="mt-3"><i class="fas fa-check-circle text-success"></i> Current Vendor VPL Options</h6>';
+        html += '<div class="table-responsive"><table class="table table-hover table-sm">';
         html += `
-            <tr>
-                <td><strong>${vpl.bandwidth}</strong></td>
-                <td>$${vpl.mrc.toFixed(2)} ${vpl.mrc_currency}</td>
-                <td>$${vpl.nrc.toFixed(2)}</td>
-                <td><span class="badge bg-${gmClass}">${vpl.gm.toFixed(1)}%</span></td>
-                <td>${vpl.service_type}</td>
-            </tr>
+            <thead class="table-light">
+                <tr>
+                    <th>Vendor</th>
+                    <th>Bandwidth</th>
+                    <th>MRC</th>
+                    <th>NRC</th>
+                    <th>Gross Margin</th>
+                    <th>Service Type</th>
+                </tr>
+            </thead>
+            <tbody>
         `;
-    });
 
-    html += '</tbody></table></div>';
+        currentVendorVpls.forEach(vpl => {
+            const gmClass = vpl.gm_status === 'success' ? 'success' :
+                           vpl.gm_status === 'warning' ? 'warning' : 'danger';
 
-    document.getElementById('renewalVplList').innerHTML = html;
-    document.getElementById('renewalVplSection').style.display = 'block';
+            html += `
+                <tr class="table-success">
+                    <td><strong>${vpl.vendor_name}</strong></td>
+                    <td><strong>${vpl.bandwidth}</strong></td>
+                    <td>${vpl.mrc.toFixed(2)} ${vpl.mrc_currency}</td>
+                    <td>${vpl.nrc.toFixed(2)}</td>
+                    <td><span class="badge bg-${gmClass}">${vpl.gm.toFixed(1)}%</span></td>
+                    <td><small>${vpl.service_type}</small></td>
+                </tr>
+            `;
+        });
+
+        html += '</tbody></table></div>';
+    }
+
+    // Display alternative vendor VPLs
+    if (alternativeVendorVpls.length > 0) {
+        html += '<h6 class="mt-4"><i class="fas fa-exchange-alt text-info"></i> Alternative Vendor VPL Options (Negotiation Leverage)</h6>';
+        html += '<div class="alert alert-info"><i class="fas fa-lightbulb"></i> Use these as leverage in renewal negotiations or consider switching vendors for better margins.</div>';
+        html += '<div class="table-responsive"><table class="table table-hover table-sm">';
+        html += `
+            <thead class="table-light">
+                <tr>
+                    <th>Vendor</th>
+                    <th>Bandwidth</th>
+                    <th>MRC</th>
+                    <th>NRC</th>
+                    <th>Gross Margin</th>
+                    <th>Service Type</th>
+                </tr>
+            </thead>
+            <tbody>
+        `;
+
+        alternativeVendorVpls.forEach(vpl => {
+            const gmClass = vpl.gm_status === 'success' ? 'success' :
+                           vpl.gm_status === 'warning' ? 'warning' : 'danger';
+
+            html += `
+                <tr class="table-info">
+                    <td><strong>${vpl.vendor_name}</strong></td>
+                    <td><strong>${vpl.bandwidth}</strong></td>
+                    <td>${vpl.mrc.toFixed(2)} ${vpl.mrc_currency}</td>
+                    <td>${vpl.nrc.toFixed(2)}</td>
+                    <td><span class="badge bg-${gmClass}">${vpl.gm.toFixed(1)}%</span></td>
+                    <td><small>${vpl.service_type}</small></td>
+                </tr>
+            `;
+        });
+
+        html += '</tbody></table></div>';
+    }
+
+    if (html) {
+        document.getElementById('renewalVplList').innerHTML = html;
+        document.getElementById('renewalVplSection').style.display = 'block';
+    }
 }
