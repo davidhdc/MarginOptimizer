@@ -589,26 +589,29 @@ class Neo4jClient:
             print(f"Error getting vendor names: {e}")
             return []
 
-    def get_vendor_contract_history(self, vendor_name: str, limit: int = 100) -> List[Dict]:
+    def get_vendor_contract_history(self, vendor_name: str, limit: int = 500) -> List[Dict]:
         """
         Get new contract history for a vendor (VendorQuotes)
 
         Args:
             vendor_name: Vendor name to search for
-            limit: Maximum number of results to return
+            limit: Maximum number of results to return (default: 500)
 
         Returns:
-            List of contract records
+            List of contract records with MRC and date information
         """
         if not self.driver:
             return []
 
         try:
+            # Query prioritizes contracts with MRC data, then orders by date
             query = """
                 MATCH (v:Vendor {name: $vendor_name})-[:PROVIDED_QUOTE]->(vq:VendorQuote)
                 OPTIONAL MATCH (vq)-[:BANDWIDTH_DOWN_OF]->(bw:Bandwidth)
                 WITH vq, bw
-                ORDER BY vq.date_created DESC
+                ORDER BY
+                    CASE WHEN vq.mrc IS NOT NULL THEN 0 ELSE 1 END,
+                    vq.date_created DESC
                 LIMIT $limit
                 RETURN vq.id as quote_id,
                        vq.date_created as quote_date,
