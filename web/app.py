@@ -575,34 +575,38 @@ def api_analyze_renewal():
                 exact_match_vpls.append(v)
 
         # Determine which VPLs to show
-        vpls_to_show = exact_match_vpls if exact_match_vpls else []
+        if service_bandwidth_bps:
+            # Service has bandwidth defined
+            if exact_match_vpls:
+                # Show VPLs with exact bandwidth match
+                vpls_to_show = exact_match_vpls
+            elif higher_bw_vpls:
+                # No exact match, show next higher bandwidth
+                higher_bw_vpls.sort(key=lambda x: x.get('bandwidth_bps', float('inf')))
+                next_higher_bw = higher_bw_vpls[0].get('bandwidth_bps')
+                vpls_to_show = [v for v in higher_bw_vpls if v.get('bandwidth_bps') == next_higher_bw]
+            else:
+                vpls_to_show = []
+        else:
+            # Service has NO bandwidth - show only most cost-effective bandwidth
+            if exact_match_vpls:
+                from collections import defaultdict
+                bw_groups = defaultdict(list)
+                for v in exact_match_vpls:
+                    bw_bps = v.get('bandwidth_bps')
+                    if bw_bps:
+                        bw_groups[bw_bps].append(v.get('mrc', float('inf')))
 
-        # If no exact matches and service has bandwidth, find the next higher bandwidth
-        if not vpls_to_show and higher_bw_vpls and service_bandwidth_bps:
-            # Sort by bandwidth ascending
-            higher_bw_vpls.sort(key=lambda x: x.get('bandwidth_bps', float('inf')))
-            # Get the smallest higher bandwidth value
-            next_higher_bw = higher_bw_vpls[0].get('bandwidth_bps')
-            # Include all VPLs with that bandwidth
-            vpls_to_show = [v for v in higher_bw_vpls if v.get('bandwidth_bps') == next_higher_bw]
-
-        # Special case: If service has no bandwidth, show only the most cost-effective bandwidth
-        # (smallest bandwidth with good pricing options)
-        if not vpls_to_show and not service_bandwidth_bps and exact_match_vpls:
-            # Group VPLs by bandwidth and find the one with lowest average price
-            from collections import defaultdict
-            bw_groups = defaultdict(list)
-            for v in exact_match_vpls:
-                bw_bps = v.get('bandwidth_bps')
-                if bw_bps:
-                    bw_groups[bw_bps].append(v.get('mrc', float('inf')))
-
-            if bw_groups:
-                # Find bandwidth with lowest average MRC
-                best_bw = min(bw_groups.keys(),
-                            key=lambda bw: sum(bw_groups[bw]) / len(bw_groups[bw]) if bw_groups[bw] else float('inf'))
-                # Show all VPLs with that bandwidth
-                vpls_to_show = [v for v in exact_match_vpls if v.get('bandwidth_bps') == best_bw]
+                if bw_groups:
+                    # Find bandwidth with lowest average MRC
+                    best_bw = min(bw_groups.keys(),
+                                key=lambda bw: sum(bw_groups[bw]) / len(bw_groups[bw]) if bw_groups[bw] else float('inf'))
+                    # Show all VPLs with that bandwidth
+                    vpls_to_show = [v for v in exact_match_vpls if v.get('bandwidth_bps') == best_bw]
+                else:
+                    vpls_to_show = []
+            else:
+                vpls_to_show = []
 
         # Process selected VPLs
         for v in vpls_to_show:
