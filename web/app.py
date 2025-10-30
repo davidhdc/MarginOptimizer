@@ -576,7 +576,13 @@ def api_analyze_renewal():
         
         # Generate renewal recommendations
         recommendations = []
-        
+
+        # Convert current_mrc to service currency for fair comparisons with VPLs
+        if service_is_usd:
+            current_mrc_in_service_currency = current_mrc
+        else:
+            current_mrc_in_service_currency = current_mrc * vpl_exchange_rate
+
         # Recommendation 1: Based on renewal history success rate
         if renewal_stats and renewal_stats.get('has_data'):
             if renewal_stats['success_rate'] >= 50:
@@ -605,9 +611,9 @@ def api_analyze_renewal():
         current_vendor_vpls = [v for v in response['vpl_options'] if v['is_current_vendor']]
         if current_vendor_vpls:
             best_current_vpl = min(current_vendor_vpls, key=lambda x: x['mrc'])
-            if best_current_vpl['mrc'] < current_mrc:
-                savings = current_mrc - best_current_vpl['mrc']
-                savings_pct = (savings / current_mrc * 100) if current_mrc > 0 else 0
+            if best_current_vpl['mrc'] < current_mrc_in_service_currency:
+                savings = current_mrc_in_service_currency - best_current_vpl['mrc']
+                savings_pct = (savings / current_mrc_in_service_currency * 100) if current_mrc_in_service_currency > 0 else 0
 
                 recommendations.append({
                     'priority': 2,
@@ -624,9 +630,9 @@ def api_analyze_renewal():
         if alternative_vendor_vpls:
             # Find best alternative VPL
             best_alt_vpl = min(alternative_vendor_vpls, key=lambda x: x['mrc'])
-            if best_alt_vpl['mrc'] < current_mrc:
-                savings = current_mrc - best_alt_vpl['mrc']
-                savings_pct = (savings / current_mrc * 100) if current_mrc > 0 else 0
+            if best_alt_vpl['mrc'] < current_mrc_in_service_currency:
+                savings = current_mrc_in_service_currency - best_alt_vpl['mrc']
+                savings_pct = (savings / current_mrc_in_service_currency * 100) if current_mrc_in_service_currency > 0 else 0
 
                 recommendations.append({
                     'priority': 3,
