@@ -835,3 +835,80 @@ class QuickbaseClient:
                 'count': 0,
                 'records': []
             }
+
+    def get_vendor_names(self, search_term: str) -> List[str]:
+        """
+        Get unique vendor names from Quickbase tables for autocomplete
+
+        Args:
+            search_term: Partial vendor name to search for
+
+        Returns:
+            List of unique vendor names
+        """
+        try:
+            vendor_names = set()
+
+            # Query VOC Lines table (bkr26d56f) for vendor names (field 245)
+            voc_table_id = "bkr26d56f"
+            where_clause_voc = f"{{245.CT.'{search_term}'}}"
+
+            payload_voc = {
+                'from': voc_table_id,
+                'select': [245],  # Vendor name
+                'where': where_clause_voc,
+                'options': {
+                    'skip': 0,
+                    'top': 50
+                }
+            }
+
+            response_voc = requests.post(
+                f'{self.base_url}/records/query',
+                headers=self.headers,
+                json=payload_voc,
+                timeout=30
+            )
+
+            if response_voc.status_code == 200:
+                data = response_voc.json()
+                records = data.get('data', [])
+                for record in records:
+                    vendor_name = record.get('245', {}).get('value')
+                    if vendor_name:
+                        vendor_names.add(vendor_name)
+
+            # Query Renewals table (bqrc5mm8e) for vendor names (field 39)
+            renewals_table_id = "bqrc5mm8e"
+            where_clause_renewals = f"{{39.CT.'{search_term}'}}"
+
+            payload_renewals = {
+                'from': renewals_table_id,
+                'select': [39],  # Vendor name
+                'where': where_clause_renewals,
+                'options': {
+                    'skip': 0,
+                    'top': 50
+                }
+            }
+
+            response_renewals = requests.post(
+                f'{self.base_url}/records/query',
+                headers=self.headers,
+                json=payload_renewals,
+                timeout=30
+            )
+
+            if response_renewals.status_code == 200:
+                data = response_renewals.json()
+                records = data.get('data', [])
+                for record in records:
+                    vendor_name = record.get('39', {}).get('value')
+                    if vendor_name:
+                        vendor_names.add(vendor_name)
+
+            return sorted(list(vendor_names))
+
+        except Exception as e:
+            print(f"Error getting vendor names from Quickbase: {e}")
+            return []

@@ -573,9 +573,10 @@ class Neo4jClient:
         try:
             query = """
                 MATCH (v:Vendor)
-                WHERE toLower(v.vendor_name) CONTAINS toLower($search_term)
-                RETURN DISTINCT v.vendor_name as vendor_name
-                ORDER BY v.vendor_name
+                WHERE toLower(v.name) CONTAINS toLower($search_term)
+                AND v.name IS NOT NULL
+                RETURN DISTINCT v.name as vendor_name
+                ORDER BY v.name
                 LIMIT $limit
             """
 
@@ -604,7 +605,7 @@ class Neo4jClient:
 
         try:
             query = """
-                MATCH (v:Vendor {vendor_name: $vendor_name})-[:VENDOR_OF]->(vq:VendorQuote)
+                MATCH (v:Vendor {name: $vendor_name})-[:PROVIDED_QUOTE]->(vq:VendorQuote)
                 OPTIONAL MATCH (vq)-[:SERVICE_OF]->(s:Service)
                 OPTIONAL MATCH (vq)-[:BANDWIDTH_DOWN_OF]->(bw:Bandwidth)
                 RETURN vq.id as quote_id,

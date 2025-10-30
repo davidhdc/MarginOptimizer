@@ -1069,9 +1069,16 @@ def api_vendor_autocomplete():
             return jsonify({'vendors': []})
 
         # Get unique vendor names from Neo4j
-        vendor_names = neo4j_client.get_vendor_names(search_term)
+        neo4j_vendors = neo4j_client.get_vendor_names(search_term)
 
-        return jsonify({'vendors': vendor_names})
+        # Get vendor names from Quickbase (VOC Lines and Renewals tables)
+        qb_vendors = qb_client.get_vendor_names(search_term)
+
+        # Combine and deduplicate
+        all_vendors = set(neo4j_vendors + qb_vendors)
+        vendor_list = sorted(list(all_vendors))[:20]  # Limit to 20 results
+
+        return jsonify({'vendors': vendor_list})
 
     except Exception as e:
         print(f"Error in api_vendor_autocomplete: {e}")
