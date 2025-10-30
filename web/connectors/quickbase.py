@@ -517,19 +517,21 @@ class QuickbaseClient:
         - Service details
         - Status
 
+        Also fetches Client MRC from Services table (bfwgbisz4) to calculate
+        accurate Gross Margin dynamically.
+
         Key fields:
         - 234: Service ID
         - 245: Vendor name
-        - 135: MRC (USD) Tax Included
+        - 135: MRC (USD) Tax Included (Vendor MRC)
         - 254: VOC Line Status
-        - 180: Gross Margin %
         - Many other fields for full context
         """
         voc_table_id = "bkr26d56f"
 
         # Query for VOC Lines matching this service
         where_clause = f"{{234.EX.'{service_id}'}}"
-        
+
         try:
             payload = {
                 'from': voc_table_id,
@@ -537,10 +539,8 @@ class QuickbaseClient:
                     3,    # Record ID
                     234,  # Service ID
                     245,  # Vendor name
-                    135,  # MRC (USD) Tax Included
+                    135,  # MRC (USD) Tax Included (Vendor MRC)
                     254,  # VOC Line Status
-                    180,  # Gross Margin %
-                    179,  # Gross Margin (USD)
                     246,  # Bandwidth
                     247,  # Service Type
                     248,  # Lead Time
@@ -549,42 +549,57 @@ class QuickbaseClient:
                 'where': where_clause,
                 'sortBy': [{'fieldId': 3, 'order': 'DESC'}]  # Most recent first
             }
-            
+
             response = requests.post(
                 f'{self.base_url}/records/query',
                 headers=self.headers,
                 json=payload,
                 timeout=30
             )
-            
+
             if response.status_code == 200:
                 data = response.json()
                 records = data.get('data', [])
-                
+
                 if records:
                     # Get the most recent VOC Line (first in sorted results)
                     voc = records[0]
+                    vendor_mrc_usd = float(voc.get('135', {}).get('value', 0))
+
+                    # Get Client MRC from Services table to calculate accurate GM
+                    service_data = self.get_service_mrc(service_id)
+                    client_mrc = service_data.get('mrc', 0)
+
+                    # Calculate GM dynamically from latest Quickbase data
+                    # GM% = ((Client MRC - Vendor MRC) / Client MRC) * 100
+                    gm_percent = 0.0
+                    gm_usd = 0.0
+
+                    if client_mrc and client_mrc > 0:
+                        gm_usd = client_mrc - vendor_mrc_usd
+                        gm_percent = (gm_usd / client_mrc) * 100
 
                     return {
                         'has_data': True,
                         'record_id': voc.get('3', {}).get('value'),
                         'service_id': voc.get('234', {}).get('value'),
                         'vendor_name': voc.get('245', {}).get('value'),
-                        'mrc_usd': float(voc.get('135', {}).get('value', 0)),
+                        'mrc_usd': vendor_mrc_usd,
                         'status': voc.get('254', {}).get('value'),
-                        'gm_percent': float(voc.get('180', {}).get('value', 0)),
-                        'gm_usd': float(voc.get('179', {}).get('value', 0)),
+                        'gm_percent': gm_percent,  # Calculated dynamically
+                        'gm_usd': gm_usd,  # Calculated dynamically
                         'bandwidth': voc.get('246', {}).get('value'),
                         'service_type': voc.get('247', {}).get('value'),
                         'lead_time': voc.get('248', {}).get('value'),
-                        'nrc_usd': float(voc.get('136', {}).get('value', 0))
+                        'nrc_usd': float(voc.get('136', {}).get('value', 0)),
+                        'client_mrc': client_mrc  # Include for reference
                     }
                 else:
                     return {'has_data': False, 'error': 'No VOC Line found for this service'}
             else:
                 print(f"Quickbase API error: {response.status_code}")
                 return {'has_data': False, 'error': f'API error: {response.status_code}'}
-                
+
         except Exception as e:
             print(f"Error getting VOC Line from Quickbase: {e}")
             return {'has_data': False, 'error': str(e)}
