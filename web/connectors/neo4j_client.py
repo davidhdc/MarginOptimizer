@@ -606,28 +606,40 @@ class Neo4jClient:
         try:
             query = """
                 MATCH (v:Vendor {name: $vendor_name})-[:PROVIDED_QUOTE]->(vq:VendorQuote)
-                OPTIONAL MATCH (vq)-[:SERVICE_OF]->(s:Service)
                 OPTIONAL MATCH (vq)-[:BANDWIDTH_DOWN_OF]->(bw:Bandwidth)
-                RETURN vq.id as quote_id,
-                       vq.quote_date as quote_date,
-                       vq.mrc as mrc,
-                       s.service_id as service_id,
-                       bw.label as bandwidth
-                ORDER BY vq.quote_date DESC
+                WITH vq, bw
+                ORDER BY vq.date_created DESC
                 LIMIT $limit
+                RETURN vq.id as quote_id,
+                       vq.date_created as quote_date,
+                       vq.fk_task_id as task_id,
+                       vq.mrc as mrc,
+                       bw.label as bandwidth
             """
 
             results = self.execute_cypher(query, {"vendor_name": vendor_name, "limit": limit})
 
             contracts = []
             for r in results:
+                # Format date_created if available
+                quote_date = r.get('quote_date')
+                if quote_date:
+                    # Neo4j DateTime object
+                    try:
+                        quote_date_str = quote_date.isoformat()[:10]  # Get YYYY-MM-DD
+                    except:
+                        quote_date_str = str(quote_date)[:10]
+                else:
+                    quote_date_str = 'N/A'
+
                 contracts.append({
                     'quote_id': r.get('quote_id'),
-                    'quote_date': r.get('quote_date'),
+                    'quote_date': quote_date_str,
+                    'task_id': r.get('task_id'),
+                    'service_id': f"Task-{r.get('task_id')}" if r.get('task_id') else 'N/A',
                     'mrc': r.get('mrc'),
-                    'service_id': r.get('service_id'),
                     'bandwidth': r.get('bandwidth', 'N/A'),
-                    'status': 'Active'  # Default status
+                    'status': 'Quoted'
                 })
 
             return contracts
