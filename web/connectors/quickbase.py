@@ -511,14 +511,14 @@ class QuickbaseClient:
     def get_voc_line_by_service(self, service_id: str) -> Dict:
         """
         Get VOC Line data for renewal analysis by Service ID
-        
+
         Uses table bkr26d56f (VOC Lines) to get:
         - Current vendor and MRC
         - Service details
         - Status
-        
+
         Key fields:
-        - 6: Service ID
+        - 234: Service ID
         - 245: Vendor name
         - 135: MRC (USD) Tax Included
         - 254: VOC Line Status
@@ -526,16 +526,16 @@ class QuickbaseClient:
         - Many other fields for full context
         """
         voc_table_id = "bkr26d56f"
-        
+
         # Query for VOC Lines matching this service
-        where_clause = f"{{6.EX.'{service_id}'}}"
+        where_clause = f"{{234.EX.'{service_id}'}}"
         
         try:
             payload = {
                 'from': voc_table_id,
                 'select': [
                     3,    # Record ID
-                    6,    # Service ID  
+                    234,  # Service ID
                     245,  # Vendor name
                     135,  # MRC (USD) Tax Included
                     254,  # VOC Line Status
@@ -551,9 +551,10 @@ class QuickbaseClient:
             }
             
             response = requests.post(
-                f'{self.base_url}/v1/records/query',
+                f'{self.base_url}/records/query',
                 headers=self.headers,
-                json=payload
+                json=payload,
+                timeout=30
             )
             
             if response.status_code == 200:
@@ -563,21 +564,20 @@ class QuickbaseClient:
                 if records:
                     # Get the most recent VOC Line (first in sorted results)
                     voc = records[0]
-                    fields = voc.get('fields', {})
-                    
+
                     return {
                         'has_data': True,
-                        'record_id': fields.get('3', {}).get('value'),
-                        'service_id': fields.get('6', {}).get('value'),
-                        'vendor_name': fields.get('245', {}).get('value'),
-                        'mrc_usd': float(fields.get('135', {}).get('value', 0)),
-                        'status': fields.get('254', {}).get('value'),
-                        'gm_percent': float(fields.get('180', {}).get('value', 0)),
-                        'gm_usd': float(fields.get('179', {}).get('value', 0)),
-                        'bandwidth': fields.get('246', {}).get('value'),
-                        'service_type': fields.get('247', {}).get('value'),
-                        'lead_time': fields.get('248', {}).get('value'),
-                        'nrc_usd': float(fields.get('136', {}).get('value', 0))
+                        'record_id': voc.get('3', {}).get('value'),
+                        'service_id': voc.get('234', {}).get('value'),
+                        'vendor_name': voc.get('245', {}).get('value'),
+                        'mrc_usd': float(voc.get('135', {}).get('value', 0)),
+                        'status': voc.get('254', {}).get('value'),
+                        'gm_percent': float(voc.get('180', {}).get('value', 0)),
+                        'gm_usd': float(voc.get('179', {}).get('value', 0)),
+                        'bandwidth': voc.get('246', {}).get('value'),
+                        'service_type': voc.get('247', {}).get('value'),
+                        'lead_time': voc.get('248', {}).get('value'),
+                        'nrc_usd': float(voc.get('136', {}).get('value', 0))
                     }
                 else:
                     return {'has_data': False, 'error': 'No VOC Line found for this service'}
@@ -626,9 +626,10 @@ class QuickbaseClient:
             }
             
             response = requests.post(
-                f'{self.base_url}/v1/records/query',
+                f'{self.base_url}/records/query',
                 headers=self.headers,
-                json=payload
+                json=payload,
+                timeout=30
             )
             
             if response.status_code == 200:
