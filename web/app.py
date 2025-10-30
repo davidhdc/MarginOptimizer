@@ -463,13 +463,18 @@ def api_analyze_renewal():
         
         nearby = vendor_quotes.get('nearby', [])
         vpl = vendor_quotes.get('vpl', [])
-        
+
+        # Get service bandwidth in bps for filtering
+        service_bandwidth_bps = service.get('bandwidth_bps')
+        service_bandwidth_display = service.get('bandwidth_display', 'N/A')
+
         # Build response
         response = {
             'service': {
                 'service_id': service['service_id'],
                 'customer': service['customer'],
-                'bandwidth_display': service['bandwidth_display'],
+                'bandwidth_display': service_bandwidth_display,
+                'bandwidth_bps': service_bandwidth_bps,
                 'client_mrc': client_mrc,
                 'currency': service_currency,
                 'address': service['address'][:100] if service['address'] else 'N/A',
@@ -540,7 +545,7 @@ def api_analyze_renewal():
                 'date_created': vq.get('date_created')
             })
         
-        # Process VPL options - include ALL vendors at this location for renewal strategy
+        # Process VPL options - filter by service bandwidth
         service_is_usd = (service_currency == 'USD')
         if not service_is_usd:
             from utils.currency import get_usd_to_brl_rate
@@ -548,7 +553,41 @@ def api_analyze_renewal():
         else:
             vpl_exchange_rate = None
 
+        # First pass: collect VPLs with exact bandwidth match
+        exact_match_vpls = []
+        higher_bw_vpls = []
+
         for v in vpl:
+            vpl_bw_bps = v.get('bandwidth_bps')
+
+            # Skip VPLs without bandwidth info
+            if not vpl_bw_bps:
+                continue
+
+            # Categorize by bandwidth
+            if service_bandwidth_bps:
+                if vpl_bw_bps == service_bandwidth_bps:
+                    exact_match_vpls.append(v)
+                elif vpl_bw_bps > service_bandwidth_bps:
+                    higher_bw_vpls.append(v)
+            else:
+                # If service has no bandwidth, include all VPLs
+                exact_match_vpls.append(v)
+
+        # Determine which VPLs to show
+        vpls_to_show = exact_match_vpls if exact_match_vpls else []
+
+        # If no exact matches, find the next higher bandwidth
+        if not vpls_to_show and higher_bw_vpls and service_bandwidth_bps:
+            # Sort by bandwidth ascending
+            higher_bw_vpls.sort(key=lambda x: x.get('bandwidth_bps', float('inf')))
+            # Get the smallest higher bandwidth value
+            next_higher_bw = higher_bw_vpls[0].get('bandwidth_bps')
+            # Include all VPLs with that bandwidth
+            vpls_to_show = [v for v in higher_bw_vpls if v.get('bandwidth_bps') == next_higher_bw]
+
+        # Process selected VPLs
+        for v in vpls_to_show:
             vpl_mrc_usd = v.get('mrc', 0)
 
             if service_is_usd:
