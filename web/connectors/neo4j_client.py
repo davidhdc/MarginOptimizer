@@ -556,6 +556,85 @@ class Neo4jClient:
             'vpl': vpl_results or []
         }
 
+    def get_vendor_names(self, search_term: str, limit: int = 20) -> List[str]:
+        """
+        Get list of unique vendor names matching search term for autocomplete
+
+        Args:
+            search_term: Partial vendor name to search for
+            limit: Maximum number of results to return
+
+        Returns:
+            List of vendor names
+        """
+        if not self.driver:
+            return []
+
+        try:
+            query = """
+                MATCH (v:Vendor)
+                WHERE toLower(v.vendor_name) CONTAINS toLower($search_term)
+                RETURN DISTINCT v.vendor_name as vendor_name
+                ORDER BY v.vendor_name
+                LIMIT $limit
+            """
+
+            results = self.execute_cypher(query, search_term=search_term, limit=limit)
+
+            vendor_names = [r['vendor_name'] for r in results if r.get('vendor_name')]
+            return vendor_names
+
+        except Exception as e:
+            print(f"Error getting vendor names: {e}")
+            return []
+
+    def get_vendor_contract_history(self, vendor_name: str, limit: int = 100) -> List[Dict]:
+        """
+        Get new contract history for a vendor (VendorQuotes)
+
+        Args:
+            vendor_name: Vendor name to search for
+            limit: Maximum number of results to return
+
+        Returns:
+            List of contract records
+        """
+        if not self.driver:
+            return []
+
+        try:
+            query = """
+                MATCH (v:Vendor {vendor_name: $vendor_name})-[:VENDOR_OF]->(vq:VendorQuote)
+                OPTIONAL MATCH (vq)-[:SERVICE_OF]->(s:Service)
+                OPTIONAL MATCH (vq)-[:BANDWIDTH_DOWN_OF]->(bw:Bandwidth)
+                RETURN vq.id as quote_id,
+                       vq.quote_date as quote_date,
+                       vq.mrc as mrc,
+                       s.service_id as service_id,
+                       bw.label as bandwidth
+                ORDER BY vq.quote_date DESC
+                LIMIT $limit
+            """
+
+            results = self.execute_cypher(query, vendor_name=vendor_name, limit=limit)
+
+            contracts = []
+            for r in results:
+                contracts.append({
+                    'quote_id': r.get('quote_id'),
+                    'quote_date': r.get('quote_date'),
+                    'mrc': r.get('mrc'),
+                    'service_id': r.get('service_id'),
+                    'bandwidth': r.get('bandwidth', 'N/A'),
+                    'status': 'Active'  # Default status
+                })
+
+            return contracts
+
+        except Exception as e:
+            print(f"Error getting vendor contract history: {e}")
+            return []
+
     def close(self):
         """Close the Neo4j driver connection"""
         if self.driver:

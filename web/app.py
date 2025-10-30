@@ -1058,6 +1058,85 @@ def api_strategy(service_id, vq_qb_id):
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/api/vendor-autocomplete', methods=['GET'])
+def api_vendor_autocomplete():
+    """API endpoint to get vendor name suggestions for autocomplete"""
+    try:
+        init_clients()
+
+        search_term = request.args.get('q', '').strip()
+        if not search_term or len(search_term) < 2:
+            return jsonify({'vendors': []})
+
+        # Get unique vendor names from Neo4j
+        vendor_names = neo4j_client.get_vendor_names(search_term)
+
+        return jsonify({'vendors': vendor_names})
+
+    except Exception as e:
+        print(f"Error in api_vendor_autocomplete: {e}")
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/analyze-vendor', methods=['POST'])
+def api_analyze_vendor():
+    """API endpoint to get vendor historical data (renewals + new contracts)"""
+    try:
+        init_clients()
+
+        vendor_name = request.json.get('vendor_name', '').strip()
+        if not vendor_name:
+            return jsonify({'error': 'Vendor name is required'}), 400
+
+        # Get renewal history from Quickbase
+        renewal_history = qb_client.get_vendor_renewal_history(vendor_name)
+
+        # Get new contract history from Neo4j (VendorQuotes)
+        new_contract_history = neo4j_client.get_vendor_contract_history(vendor_name)
+
+        # Calculate statistics
+        total_renewals = len(renewal_history.get('records', []))
+        total_new_contracts = len(new_contract_history)
+
+        # Calculate renewal stats
+        successful_renewals = 0
+        total_discount = 0
+        discount_count = 0
+
+        for renewal in renewal_history.get('records', []):
+            if renewal.get('status') in ['Renewed', 'Active']:
+                successful_renewals += 1
+
+            discount = renewal.get('discount_percent')
+            if discount is not None:
+                total_discount += discount
+                discount_count += 1
+
+        avg_discount = (total_discount / discount_count) if discount_count > 0 else 0
+        success_rate = (successful_renewals / total_renewals * 100) if total_renewals > 0 else 0
+
+        response = {
+            'vendor_name': vendor_name,
+            'summary': {
+                'total_renewals': total_renewals,
+                'total_new_contracts': total_new_contracts,
+                'avg_discount': round(avg_discount, 1),
+                'success_rate': round(success_rate, 1),
+                'successful_renewals': successful_renewals
+            },
+            'renewal_history': renewal_history.get('records', []),
+            'new_contract_history': new_contract_history
+        }
+
+        return jsonify(response)
+
+    except Exception as e:
+        print(f"Error in api_analyze_vendor: {e}")
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/health')
 def health():
     """Health check endpoint"""

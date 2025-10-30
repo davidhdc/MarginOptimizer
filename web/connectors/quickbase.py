@@ -748,3 +748,90 @@ class QuickbaseClient:
                 'bandwidth_mbps': None,
                 'bandwidth_bps': None
             }
+
+    def get_vendor_renewal_history(self, vendor_name: str) -> Dict:
+        """
+        Get renewal history for a specific vendor from Renewals table
+
+        Args:
+            vendor_name: Vendor name to search for
+
+        Returns:
+            Dictionary with renewal records
+        """
+        try:
+            renewals_table_id = "bqrc5mm8e"
+
+            # Query renewals table filtering by vendor name (field 39)
+            where_clause = f"{{39.CT.'{vendor_name}'}}"
+
+            payload = {
+                'from': renewals_table_id,
+                'select': [
+                    3,    # Record ID
+                    234,  # Service ID
+                    39,   # Vendor name
+                    246,  # Original MRC
+                    247,  # Renewed MRC
+                    248,  # Discount %
+                    136,  # Renewal date
+                    135,  # Status
+                    180   # Currency
+                ],
+                'where': where_clause,
+                'sortBy': [{'fieldId': 136, 'order': 'DESC'}],  # Sort by renewal date desc
+                'options': {
+                    'skip': 0,
+                    'top': 100  # Limit to 100 most recent
+                }
+            }
+
+            response = requests.post(
+                f'{self.base_url}/records/query',
+                headers=self.headers,
+                json=payload,
+                timeout=30
+            )
+
+            if response.status_code == 200:
+                data = response.json()
+                records = data.get('data', [])
+
+                renewal_records = []
+                for record in records:
+                    original_mrc = record.get('246', {}).get('value')
+                    renewed_mrc = record.get('247', {}).get('value')
+                    discount_percent = record.get('248', {}).get('value')
+
+                    renewal_records.append({
+                        'record_id': record.get('3', {}).get('value'),
+                        'service_id': record.get('234', {}).get('value'),
+                        'vendor_name': record.get('39', {}).get('value'),
+                        'original_mrc': float(original_mrc) if original_mrc else None,
+                        'renewed_mrc': float(renewed_mrc) if renewed_mrc else None,
+                        'discount_percent': float(discount_percent) if discount_percent else 0,
+                        'renewal_date': record.get('136', {}).get('value'),
+                        'status': record.get('135', {}).get('value'),
+                        'currency': record.get('180', {}).get('value', 'USD')
+                    })
+
+                return {
+                    'has_data': True,
+                    'count': len(renewal_records),
+                    'records': renewal_records
+                }
+            else:
+                print(f"Quickbase API error: {response.status_code}")
+                return {
+                    'has_data': False,
+                    'count': 0,
+                    'records': []
+                }
+
+        except Exception as e:
+            print(f"Error getting vendor renewal history from Quickbase: {e}")
+            return {
+                'has_data': False,
+                'count': 0,
+                'records': []
+            }

@@ -15,6 +15,11 @@
             <i class="fas fa-sync-alt"></i> Renewal Analysis
         </button>
     </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="vendor-tab" data-bs-toggle="tab" data-bs-target="#vendor" type="button" role="tab">
+            <i class="fas fa-building"></i> Vendor Analysis
+        </button>
+    </li>
 </ul>
 
 <!-- Tab Content -->
@@ -286,6 +291,156 @@
                         <h4><i class="fas fa-list"></i> Available VPL Options</h4>
                         <div id="renewalVplList">
                             <!-- VPL options will be populated here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- VENDOR ANALYSIS TAB -->
+    <div class="tab-pane fade" id="vendor" role="tabpanel">
+        <div class="row">
+            <!-- Left Column: Vendor Search -->
+            <div class="col-lg-4">
+                <div class="card shadow-sm">
+                    <div class="card-header bg-info text-white">
+                        <h5 class="mb-0">
+                            <i class="fas fa-building"></i> Vendor Search
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <form id="analyzeVendorForm">
+                            <div class="mb-3">
+                                <label for="vendorName" class="form-label">Vendor Name</label>
+                                <input type="text" class="form-control" id="vendorName" placeholder="Start typing vendor name..." autocomplete="off" required>
+                                <div class="form-text">Search for vendor by name</div>
+                                <!-- Autocomplete dropdown -->
+                                <div id="vendorAutocomplete" class="list-group position-absolute" style="display: none; z-index: 1000; max-height: 300px; overflow-y: auto; width: calc(100% - 48px);"></div>
+                            </div>
+
+                            <button type="submit" class="btn btn-info w-100">
+                                <i class="fas fa-search"></i> Analyze Vendor
+                            </button>
+                        </form>
+
+                        <!-- Loading Spinner -->
+                        <div id="vendorLoadingSpinner" class="text-center mt-3" style="display: none;">
+                            <div class="spinner-border text-info" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                            <p class="mt-2">Loading vendor data...</p>
+                        </div>
+
+                        <!-- Error Alert -->
+                        <div id="vendorErrorAlert" class="alert alert-danger mt-3" style="display: none;">
+                            <i class="fas fa-exclamation-triangle"></i>
+                            <span id="vendorErrorMessage"></span>
+                        </div>
+
+                        <!-- Quick Summary -->
+                        <div id="vendorQuickSummary" class="mt-4" style="display: none;">
+                            <h6>Summary</h6>
+                            <div class="list-group">
+                                <div class="list-group-item d-flex justify-content-between align-items-center">
+                                    Renewals
+                                    <span class="badge bg-success rounded-pill" id="statRenewals">0</span>
+                                </div>
+                                <div class="list-group-item d-flex justify-content-between align-items-center">
+                                    New Contracts
+                                    <span class="badge bg-primary rounded-pill" id="statNewContracts">0</span>
+                                </div>
+                                <div class="list-group-item d-flex justify-content-between align-items-center">
+                                    Avg Discount
+                                    <span class="badge bg-info rounded-pill" id="statAvgDiscount">0%</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Column: Vendor Results -->
+            <div class="col-lg-8">
+                <!-- Welcome Message -->
+                <div id="vendorWelcomeMessage" class="card shadow-sm">
+                    <div class="card-body text-center py-5">
+                        <i class="fas fa-building fa-5x text-info mb-4"></i>
+                        <h3>Vendor Historical Analysis</h3>
+                        <p class="lead">Search for a vendor to view their historical performance</p>
+                        <div class="row mt-4">
+                            <div class="col-md-6">
+                                <i class="fas fa-sync-alt fa-2x text-success mb-2"></i>
+                                <h6>Renewal History</h6>
+                                <p class="small">Track renewal success rates and discounts</p>
+                            </div>
+                            <div class="col-md-6">
+                                <i class="fas fa-plus-circle fa-2x text-primary mb-2"></i>
+                                <h6>New Contract History</h6>
+                                <p class="small">View new contracting patterns</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Vendor Results -->
+                <div id="vendorResults" style="display: none;">
+                    <!-- Vendor Info Header -->
+                    <div class="card shadow-sm mb-4">
+                        <div class="card-header bg-info text-white">
+                            <h5 class="mb-0">
+                                <i class="fas fa-building"></i> <span id="vendorDisplayName"></span>
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-3 text-center">
+                                    <h3 class="text-success" id="totalRenewals">0</h3>
+                                    <p class="text-muted mb-0">Total Renewals</p>
+                                </div>
+                                <div class="col-md-3 text-center">
+                                    <h3 class="text-primary" id="totalNewContracts">0</h3>
+                                    <p class="text-muted mb-0">New Contracts</p>
+                                </div>
+                                <div class="col-md-3 text-center">
+                                    <h3 class="text-info" id="avgDiscountRate">0%</h3>
+                                    <p class="text-muted mb-0">Avg Discount</p>
+                                </div>
+                                <div class="col-md-3 text-center">
+                                    <h3 class="text-warning" id="successRate">0%</h3>
+                                    <p class="text-muted mb-0">Success Rate</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Renewal History -->
+                    <div class="card shadow-sm mb-4">
+                        <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
+                            <h5 class="mb-0">
+                                <i class="fas fa-sync-alt"></i> Renewal History
+                            </h5>
+                            <span class="badge bg-light text-dark" id="renewalHistoryCount">0</span>
+                        </div>
+                        <div class="card-body">
+                            <div id="renewalHistoryContainer">
+                                <!-- Renewal history will be inserted here -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- New Contract History -->
+                    <div class="card shadow-sm mb-4">
+                        <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                            <h5 class="mb-0">
+                                <i class="fas fa-plus-circle"></i> New Contract History
+                            </h5>
+                            <span class="badge bg-light text-dark" id="newContractHistoryCount">0</span>
+                        </div>
+                        <div class="card-body">
+                            <div id="newContractHistoryContainer">
+                                <!-- New contract history will be inserted here -->
+                            </div>
                         </div>
                     </div>
                 </div>
