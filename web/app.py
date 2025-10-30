@@ -465,8 +465,16 @@ def api_analyze_renewal():
         vpl = vendor_quotes.get('vpl', [])
 
         # Get service bandwidth in bps for filtering
+        # Try Neo4j first, then fallback to Quickbase services table
         service_bandwidth_bps = service.get('bandwidth_bps')
         service_bandwidth_display = service.get('bandwidth_display', 'N/A')
+
+        if not service_bandwidth_bps or service_bandwidth_display == 'N/A':
+            # Bandwidth not in Neo4j, try Quickbase services table
+            qb_bandwidth = qb_client.get_service_bandwidth(service_id)
+            if qb_bandwidth.get('has_data'):
+                service_bandwidth_bps = qb_bandwidth.get('bandwidth_bps')
+                service_bandwidth_display = qb_bandwidth.get('bandwidth_display', 'N/A')
 
         # Build response
         response = {

@@ -663,3 +663,88 @@ class QuickbaseClient:
         except Exception as e:
             print(f"Error getting renewal history from Quickbase: {e}")
             return {'has_data': False, 'count': 0, 'renewals': []}
+
+    def get_service_bandwidth(self, service_id: str) -> Dict:
+        """
+        Get service bandwidth from Services table (bfwgbisz4)
+
+        Returns bandwidth information for the service:
+        - bandwidth_display: Text description
+        - bandwidth_mbps: Numeric value in Mbps
+        - bandwidth_bps: Numeric value in bps
+
+        Key fields:
+        - 7: Service ID
+        - 115: Bandwidth (text)
+        - 410: BW DW (bps -> Mbps) - numeric bandwidth
+        """
+        services_table_id = "bfwgbisz4"
+
+        try:
+            where_clause = f"{{7.EX.'{service_id}'}}"
+
+            payload = {
+                'from': services_table_id,
+                'select': [
+                    3,    # Record ID
+                    7,    # Service ID
+                    115,  # Bandwidth (text)
+                    410,  # BW DW (Mbps) - numeric
+                ],
+                'where': where_clause
+            }
+
+            response = requests.post(
+                f'{self.base_url}/records/query',
+                headers=self.headers,
+                json=payload,
+                timeout=30
+            )
+
+            if response.status_code == 200:
+                data = response.json()
+                records = data.get('data', [])
+
+                if records:
+                    service = records[0]
+                    bandwidth_mbps = service.get('410', {}).get('value')
+                    bandwidth_text = service.get('115', {}).get('value')
+
+                    # Convert Mbps to bps
+                    bandwidth_bps = None
+                    if bandwidth_mbps:
+                        bandwidth_bps = int(float(bandwidth_mbps) * 1_000_000)
+
+                    # Create display string
+                    bandwidth_display = bandwidth_text if bandwidth_text else (f"{int(bandwidth_mbps)} Mbps" if bandwidth_mbps else "N/A")
+
+                    return {
+                        'has_data': True,
+                        'bandwidth_display': bandwidth_display,
+                        'bandwidth_mbps': float(bandwidth_mbps) if bandwidth_mbps else None,
+                        'bandwidth_bps': bandwidth_bps
+                    }
+                else:
+                    return {
+                        'has_data': False,
+                        'bandwidth_display': 'N/A',
+                        'bandwidth_mbps': None,
+                        'bandwidth_bps': None
+                    }
+            else:
+                print(f"Quickbase API error: {response.status_code}")
+                return {
+                    'has_data': False,
+                    'bandwidth_display': 'N/A',
+                    'bandwidth_mbps': None,
+                    'bandwidth_bps': None
+                }
+
+        except Exception as e:
+            print(f"Error getting service bandwidth from Quickbase: {e}")
+            return {
+                'has_data': False,
+                'bandwidth_display': 'N/A',
+                'bandwidth_mbps': None,
+                'bandwidth_bps': None
+            }
