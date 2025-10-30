@@ -82,33 +82,100 @@
 
             <!-- Right Column: Results -->
             <div class="col-lg-8">
-                <!-- Service Information Card -->
-                <div id="serviceInfo" class="card shadow-sm mb-4" style="display: none;">
-                    <div class="card-header bg-info text-white">
-                        <h5 class="mb-0">
-                            <i class="fas fa-info-circle"></i> Service Information
-                        </h5>
-                    </div>
-                    <div class="card-body" id="serviceInfoContent">
-                        <!-- Service details will be populated here by JavaScript -->
+                <!-- Welcome Message (shown initially) -->
+                <div id="welcomeMessage" class="card shadow-sm">
+                    <div class="card-body text-center py-5">
+                        <i class="fas fa-chart-line fa-5x text-primary mb-4"></i>
+                        <h3>Welcome to Margin Optimizer</h3>
+                        <p class="lead">Enter a Service ID to start analyzing vendor quotes and optimizing margins</p>
+                        <div class="row mt-4">
+                            <div class="col-md-4">
+                                <i class="fas fa-history fa-2x text-info mb-2"></i>
+                                <h6>Historical Data</h6>
+                                <p class="small">Analyze past negotiations</p>
+                            </div>
+                            <div class="col-md-4">
+                                <i class="fas fa-balance-scale fa-2x text-success mb-2"></i>
+                                <h6>Market Benchmark</h6>
+                                <p class="small">Compare against VPL prices</p>
+                            </div>
+                            <div class="col-md-4">
+                                <i class="fas fa-lightbulb fa-2x text-warning mb-2"></i>
+                                <h6>Smart Recommendations</h6>
+                                <p class="small">Get actionable strategies</p>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
-                <!-- Analysis Results -->
-                <div id="analysisResults" style="display: none;">
-                    <!-- Vendor Quotes Section -->
-                    <div id="vendorQuotesSection" class="mb-4" style="display: none;">
-                        <h4><i class="fas fa-users"></i> Vendor Quotes</h4>
-                        <div id="vendorQuotesList">
-                            <!-- Vendor quotes will be populated here -->
+                <!-- Results Container -->
+                <div id="resultsContainer" style="display: none;">
+                    <!-- Service Info -->
+                    <div class="card shadow-sm mb-4">
+                        <div class="card-header bg-success text-white">
+                            <h5 class="mb-0">
+                                <i class="fas fa-info-circle"></i> Service Information
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <p class="mb-1"><strong>Service ID:</strong> <span id="infoServiceId"></span></p>
+                                    <p class="mb-1"><strong>Customer:</strong> <span id="infoCustomer"></span></p>
+                                    <p class="mb-1"><strong>Bandwidth:</strong> <span id="infoBandwidth"></span></p>
+                                </div>
+                                <div class="col-md-6">
+                                    <p class="mb-1"><strong>Client MRC:</strong> <span id="infoClientMrc" class="text-success fw-bold"></span></p>
+                                    <p class="mb-1"><strong>Location:</strong> <span id="infoAddress"></span></p>
+                                    <p class="mb-1"><strong>Coordinates:</strong> <span id="infoCoords" class="small text-muted"></span></p>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
-                    <!-- VPL Options Section -->
-                    <div id="vplOptionsSection" class="mb-4" style="display: none;">
-                        <h4><i class="fas fa-list"></i> VPL Options</h4>
-                        <div id="vplOptionsList">
-                            <!-- VPL options will be populated here -->
+                    <!-- Vendor Quotes -->
+                    <div class="card shadow-sm mb-4">
+                        <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                            <h5 class="mb-0">
+                                <i class="fas fa-file-invoice-dollar"></i> Vendor Quotes
+                            </h5>
+                            <span class="badge bg-light text-dark" id="vqCount">0</span>
+                        </div>
+                        <div class="card-body">
+                            <div id="vendorQuotesContainer">
+                                <!-- Vendor quotes will be inserted here -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Nearby Vendor Quotes (within 1000m, last 12 months) -->
+                    <div class="card shadow-sm mb-4">
+                        <div class="card-header bg-secondary text-white d-flex justify-content-between align-items-center">
+                            <h5 class="mb-0">
+                                <i class="fas fa-map-marker-alt"></i> Nearby Vendor Quotes
+                                <small class="ms-2">(within 1000m, last 12 months)</small>
+                            </h5>
+                            <span class="badge bg-light text-dark" id="nearbyCount">0</span>
+                        </div>
+                        <div class="card-body">
+                            <div id="nearbyQuotesContainer">
+                                <!-- Nearby quotes will be inserted here -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- VPL Options -->
+                    <div class="card shadow-sm mb-4">
+                        <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
+                            <h5 class="mb-0">
+                                <i class="fas fa-list-ul"></i> Vendor Price Lists (VPL)
+                            </h5>
+                            <span class="badge bg-light text-dark" id="vplCount">0</span>
+                        </div>
+                        <div class="card-body">
+                            <div id="vplOptionsContainer">
+                                <!-- VPL options will be inserted here -->
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -225,6 +292,40 @@
             </div>
         </div>
     </div>
-    
+
 </div>
+
+<!-- Strategy Modal (for New Contracting tab) -->
+<div class="modal fade" id="strategyModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title">
+                    <i class="fas fa-chess"></i> Negotiation Strategy
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <!-- Loading -->
+                <div id="strategyLoading" class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="mt-3">Generating negotiation strategy...</p>
+                </div>
+
+                <!-- Strategy Content -->
+                <div id="strategyContent" style="display: none;">
+                    <!-- Content will be populated by JavaScript -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times"></i> Close
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 {% endblock %}
