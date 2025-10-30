@@ -466,7 +466,7 @@ class Neo4jClient:
         # Get VPL data (Vendor Price Lists from IGIQ API)
         vpl_results = []
 
-        if include_nearby and associated_results:
+        if include_nearby:
             from connectors.vpl_api import VPLAPIClient
 
             service_info = self.execute_cypher(
@@ -484,11 +484,17 @@ class Neo4jClient:
                     service_lon = service_info[0]['lon']
                     service_type_id = service_info[0]['service_type_id']
 
-                    # Get bandwidth from first associated VQ
+                    # Get bandwidth from service or first associated VQ
                     bandwidth_bps = 100000000  # Default 100Mbps
+                    bandwidth_id = service_info[0].get('bandwidth_id')
+
+                    # Try to get from associated VQ first
                     if associated_results and associated_results[0].get('bandwidth_id'):
-                        # Try to get bandwidth in bps from Neo4j
-                        bw_query = f"MATCH (bw:Bandwidth {{id: {associated_results[0]['bandwidth_id']}}}) RETURN bw.bps_amount as bps"
+                        bandwidth_id = associated_results[0].get('bandwidth_id')
+
+                    # Get bandwidth in bps from Neo4j
+                    if bandwidth_id:
+                        bw_query = f"MATCH (bw:Bandwidth {{id: {bandwidth_id}}}) RETURN bw.bps_amount as bps"
                         bw_result = self.execute_cypher(bw_query)
                         if bw_result and bw_result[0].get('bps'):
                             bandwidth_bps = bw_result[0]['bps']
