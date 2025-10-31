@@ -207,14 +207,14 @@ def api_analyze():
 
             response['vendor_quotes'].append(vq_data)
 
-        # Process nearby vendor quotes (within 1000m, last 12 months)
+        # Process nearby vendor quotes (within 5000m, last 12 months)
         # Convert Neo4j types first
         nearby = convert_neo4j_types(nearby)
 
         for vq in nearby:
-            # Filter by distance: only include quotes within 1000 meters
+            # Filter by distance: only include quotes within 5000 meters (5km)
             distance_meters = vq.get('distance_meters', 0)
-            if distance_meters > 1000:
+            if distance_meters > 5000:
                 continue  # Skip this quote if it's too far
 
             vendor_name = vq.get('vendor_name', 'Unknown')
