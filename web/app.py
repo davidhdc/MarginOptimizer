@@ -91,7 +91,7 @@ def api_analyze():
         vendor_quotes = neo4j_client.get_vendor_quotes_for_service(
             service_id,
             include_nearby=True,
-            radius_meters=10000  # 10km radius to account for placeholder coordinates
+            radius_meters=2000  # 2km radius for nearby quotes
         )
 
         associated = vendor_quotes.get('associated', [])
@@ -756,7 +756,7 @@ def api_strategy(service_id, vq_qb_id):
         vendor_quotes = neo4j_client.get_vendor_quotes_for_service(
             service_id,
             include_nearby=True,
-            radius_meters=10000  # 10km radius to account for placeholder coordinates
+            radius_meters=2000  # 2km radius for nearby quotes
         )
 
         associated = vendor_quotes.get('associated', [])

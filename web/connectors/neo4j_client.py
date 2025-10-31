@@ -389,6 +389,7 @@ class Neo4jClient:
                 lon_max = float(service_lon) + delta_lon
 
                 # Get nearby VendorQuotes (IGIQ data) from last 12 months
+                # Note: Bandwidth filtering happens in Python to allow flexibility
                 query_nearby = f"""
                 MATCH (vq:VendorQuote)
                 WHERE vq.latitude >= {lat_min} AND vq.latitude <= {lat_max}
@@ -399,7 +400,6 @@ class Neo4jClient:
                 OPTIONAL MATCH (vq)-[:OF_TYPE]->(st:ServiceType)
                 OPTIONAL MATCH (vq)-[:BANDWIDTH_DOWN_OF]->(bw:Bandwidth)
                 WHERE (st.id = {service_type_id} OR {service_type_id} IS NULL)
-                  AND (bw.id = {bandwidth_id} OR {bandwidth_id} IS NULL)
                 RETURN vq.id as vq_id,
                        vq.quickbase_id as quickbase_id,
                        vq.mrc as mrc,
@@ -413,9 +413,10 @@ class Neo4jClient:
                        st.name as service_type,
                        st.id as service_type_id,
                        bw.name as bandwidth,
-                       bw.id as bandwidth_id
+                       bw.id as bandwidth_id,
+                       bw.bps_amount as bandwidth_bps
                 ORDER BY vq.mrc ASC
-                LIMIT 20
+                LIMIT 50
                 """
 
                 nearby_results = self.execute_cypher(query_nearby)
@@ -432,7 +433,18 @@ class Neo4jClient:
                         c = 2 * math.atan2(math.sqrt(a), math.sqrt(1-a))
                         return R * c
 
-                    # Filter by exact distance and add vendor info
+                    # Get service bandwidth for flexible filtering
+                    service_bandwidth_bps = None
+                    if bandwidth_id:
+                        bw_query = """
+                        MATCH (bw:Bandwidth {id: $bandwidth_id})
+                        RETURN bw.bps_amount as bps_amount
+                        """
+                        bw_result = self.execute_cypher(bw_query, {"bandwidth_id": bandwidth_id})
+                        if bw_result:
+                            service_bandwidth_bps = bw_result[0].get('bps_amount')
+
+                    # Filter by exact distance, bandwidth (flexible), and add vendor info
                     filtered_nearby = []
                     associated_vq_ids = {vq['vq_id'] for vq in associated_results} if associated_results else set()
 
@@ -443,6 +455,15 @@ class Neo4jClient:
                                 vq['latitude'], vq['longitude']
                             )
                             if distance <= radius_meters:
+                                # Bandwidth filter: allow exact match or slightly higher (up to 2x)
+                                vq_bandwidth_bps = vq.get('bandwidth_bps')
+                                if service_bandwidth_bps and vq_bandwidth_bps:
+                                    # Only include if: exact match OR higher but not more than 2x
+                                    if vq_bandwidth_bps < service_bandwidth_bps:
+                                        continue  # Skip lower bandwidth
+                                    if vq_bandwidth_bps > service_bandwidth_bps * 2:
+                                        continue  # Skip much higher bandwidth (>2x)
+
                                 vq['distance_meters'] = distance
                                 vq['source'] = 'nearby_igiq'
 
