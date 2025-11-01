@@ -227,6 +227,7 @@ class QuickbaseClient:
                         'successful_negotiations': 0,
                         'success_rate': 0.0,
                         'avg_discount': 0.0,
+                        'best_discount': 0.0,
                         'has_data': False
                     }
 
@@ -256,7 +257,7 @@ class QuickbaseClient:
                 successful_negotiations = len(negotiated_records)  # Only those with Delta > 0
                 success_rate = (successful_negotiations / total_negotiations * 100) if total_negotiations > 0 else 0.0
 
-                # Calculate average discount (from all negotiated records)
+                # Calculate average and best (max) discount (from all negotiated records)
                 discounts = []
                 for r in negotiated_records:
                     delta_pct = r.get('466', {}).get('value')
@@ -264,6 +265,7 @@ class QuickbaseClient:
                         discounts.append(delta_pct * 100)  # Convert to percentage
 
                 avg_discount = sum(discounts) / len(discounts) if discounts else 0
+                best_discount = max(discounts) if discounts else 0
 
                 return {
                     'vendor_name': vendor_name,
@@ -271,6 +273,7 @@ class QuickbaseClient:
                     'successful_negotiations': successful_negotiations,
                     'success_rate': success_rate,
                     'avg_discount': avg_discount,
+                    'best_discount': best_discount,
                     'has_data': total_negotiations > 0
                 }
             else:
@@ -280,6 +283,7 @@ class QuickbaseClient:
                     'successful_negotiations': 0,
                     'success_rate': 0.0,
                     'avg_discount': 0.0,
+                    'best_discount': 0.0,
                     'has_data': False
                 }
 
@@ -291,6 +295,7 @@ class QuickbaseClient:
                 'successful_negotiations': 0,
                 'success_rate': 0.0,
                 'avg_discount': 0.0,
+                'best_discount': 0.0,
                 'has_data': False
             }
 

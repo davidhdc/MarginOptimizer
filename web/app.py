@@ -189,7 +189,8 @@ def api_analyze():
                     'total_negotiations': stats['total_negotiations'],
                     'successful_negotiations': stats['successful_negotiations'],
                     'success_rate': round(stats['success_rate'], 1),
-                    'avg_discount': round(stats['avg_discount'], 1)
+                    'avg_discount': round(stats['avg_discount'], 1),
+                    'best_discount': round(stats['best_discount'], 1)
                 }
 
                 if stats['avg_discount'] > 0:
@@ -200,8 +201,18 @@ def api_analyze():
                         'mrc': round(negotiated_mrc, 2),
                         'gm': round(negotiated_gm, 1),
                         'gm_status': 'success' if negotiated_gm >= 50 else 'warning' if negotiated_gm >= 40 else 'danger',
-                        'discount': round(stats['avg_discount'], 1)
+                        'avg_discount': round(stats['avg_discount'], 1),
+                        'best_discount': round(stats['best_discount'], 1)
                     }
+
+                    # Also calculate with best discount
+                    if stats['best_discount'] > 0:
+                        best_negotiated_mrc = vq_mrc * (1 - stats['best_discount']/100)
+                        best_negotiated_gm = ((client_mrc - best_negotiated_mrc) / client_mrc * 100) if client_mrc > 0 else 0
+
+                        vq_data['projected_with_negotiation']['best_mrc'] = round(best_negotiated_mrc, 2)
+                        vq_data['projected_with_negotiation']['best_gm'] = round(best_negotiated_gm, 1)
+                        vq_data['projected_with_negotiation']['best_gm_status'] = 'success' if best_negotiated_gm >= 50 else 'warning' if best_negotiated_gm >= 40 else 'danger'
 
             # Add renewal stats if available
             if renewal_stats and renewal_stats.get('has_data'):
@@ -270,7 +281,8 @@ def api_analyze():
                     'total_negotiations': stats['total_negotiations'],
                     'successful_negotiations': stats['successful_negotiations'],
                     'success_rate': round(stats['success_rate'], 1),
-                    'avg_discount': round(stats['avg_discount'], 1)
+                    'avg_discount': round(stats['avg_discount'], 1),
+                    'best_discount': round(stats['best_discount'], 1)
                 }
 
                 if stats['avg_discount'] > 0:
@@ -281,8 +293,18 @@ def api_analyze():
                         'mrc': round(negotiated_mrc, 2),
                         'gm': round(negotiated_gm, 1),
                         'gm_status': 'success' if negotiated_gm >= 50 else 'warning' if negotiated_gm >= 40 else 'danger',
-                        'discount': round(stats['avg_discount'], 1)
+                        'avg_discount': round(stats['avg_discount'], 1),
+                        'best_discount': round(stats['best_discount'], 1)
                     }
+
+                    # Also calculate with best discount
+                    if stats['best_discount'] > 0:
+                        best_negotiated_mrc = vq_mrc * (1 - stats['best_discount']/100)
+                        best_negotiated_gm = ((client_mrc - best_negotiated_mrc) / client_mrc * 100) if client_mrc > 0 else 0
+
+                        vq_data['projected_with_negotiation']['best_mrc'] = round(best_negotiated_mrc, 2)
+                        vq_data['projected_with_negotiation']['best_gm'] = round(best_negotiated_gm, 1)
+                        vq_data['projected_with_negotiation']['best_gm_status'] = 'success' if best_negotiated_gm >= 50 else 'warning' if best_negotiated_gm >= 40 else 'danger'
 
             response['nearby_quotes'].append(vq_data)
 
