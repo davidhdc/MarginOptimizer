@@ -145,16 +145,29 @@ function displayVendorQuotes(vendorQuotes, clientMrc) {
         if (vq.projected_with_negotiation) {
             const proj = vq.projected_with_negotiation;
             const projGmBadge = Utils.getGMStatusClass(proj.gm);
+            const bestGmBadge = proj.best_gm ? Utils.getGMStatusClass(proj.best_gm) : '';
+
             projectionHtml = `
                 <div class="projection-card mt-3">
                     <div class="projection-label">
-                        <i class="fas fa-chart-line"></i> Projected with Negotiation (${proj.discount}% discount)
+                        <i class="fas fa-chart-line"></i> Projected with Negotiation (Avg: ${proj.avg_discount}% discount)
                     </div>
                     <div class="d-flex justify-content-between align-items-center">
                         <div class="projection-value">${Utils.formatCurrency(proj.mrc)}</div>
                         <span class="badge ${projGmBadge}">GM: ${proj.gm}%</span>
                     </div>
                 </div>
+                ${proj.best_discount && proj.best_discount > proj.avg_discount ? `
+                <div class="projection-card mt-2" style="background-color: #e8f5e9; border-left: 3px solid #4caf50;">
+                    <div class="projection-label">
+                        <i class="fas fa-star"></i> Best Case Scenario (${proj.best_discount}% discount)
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div class="projection-value">${Utils.formatCurrency(proj.best_mrc)}</div>
+                        <span class="badge ${bestGmBadge}">GM: ${proj.best_gm}%</span>
+                    </div>
+                </div>
+                ` : ''}
             `;
         }
 
@@ -263,16 +276,29 @@ function displayNearbyQuotes(nearbyQuotes, clientMrc) {
         if (vq.projected_with_negotiation) {
             const proj = vq.projected_with_negotiation;
             const projGmBadge = Utils.getGMStatusClass(proj.gm);
+            const bestGmBadge = proj.best_gm ? Utils.getGMStatusClass(proj.best_gm) : '';
+
             projectionHtml = `
                 <div class="projection-card mt-3">
                     <div class="projection-label">
-                        <i class="fas fa-chart-line"></i> Projected with Negotiation (${proj.discount}% discount)
+                        <i class="fas fa-chart-line"></i> Projected with Negotiation (Avg: ${proj.avg_discount}% discount)
                     </div>
                     <div class="d-flex justify-content-between align-items-center">
                         <div class="projection-value">${Utils.formatCurrency(proj.mrc)}</div>
                         <span class="badge ${projGmBadge}">GM: ${proj.gm}%</span>
                     </div>
                 </div>
+                ${proj.best_discount && proj.best_discount > proj.avg_discount ? `
+                <div class="projection-card mt-2" style="background-color: #e8f5e9; border-left: 3px solid #4caf50;">
+                    <div class="projection-label">
+                        <i class="fas fa-star"></i> Best Case Scenario (${proj.best_discount}% discount)
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div class="projection-value">${Utils.formatCurrency(proj.best_mrc)}</div>
+                        <span class="badge ${bestGmBadge}">GM: ${proj.best_gm}%</span>
+                    </div>
+                </div>
+                ` : ''}
             `;
         }
 
