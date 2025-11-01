@@ -440,10 +440,10 @@ def api_analyze_renewal():
         current_vendor = voc_line['vendor_name']
         current_mrc = voc_line['mrc_usd']
         current_gm = voc_line['gm_percent']
-        
-        # Get service currency and client MRC
-        service_currency = service.get('service_currency', 'USD')
-        client_mrc = service.get('client_mrc', 0)
+
+        # Get client MRC and currency from VOC Line (accurate source)
+        client_mrc = voc_line.get('client_mrc', 0)
+        service_currency = voc_line.get('currency') or service.get('service_currency', 'USD')
         
         # Get renewal statistics for current vendor
         renewal_stats = qb_client.get_vendor_renewal_stats(current_vendor)
