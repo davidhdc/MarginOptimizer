@@ -13,6 +13,7 @@ from neo4j.time import DateTime as Neo4jDateTime
 from connectors.neo4j_client import Neo4jClient
 from connectors.quickbase import QuickbaseClient
 from analyze_service import analyze_service, show_negotiation_strategy, analyze_all_options
+from utils.negotiation_strategy import generate_negotiation_strategy
 
 app = Flask(__name__)
 app.secret_key = 'margin-optimizer-secret-key-change-in-production'
@@ -827,10 +828,39 @@ def api_strategy(service_id, vq_qb_id):
         current_mrc = target_vq.get('mrc', 0)
         current_gm = ((client_mrc - current_mrc) / client_mrc * 100) if client_mrc > 0 else 0
 
-        # Get negotiation history
+        # Get negotiation and renewal history
         stats = qb_client.get_vendor_negotiation_stats(vendor_name)
+        renewal_stats = qb_client.get_vendor_renewal_stats(vendor_name)
 
-        # Calculate targets
+        # Get nearby quotes from same vendor for pricing evidence
+        nearby_quotes_data = vendor_quotes.get('nearby', [])
+        nearby_same_vendor = []
+
+        for nearby in nearby_quotes_data:
+            if nearby.get('vendor_name') == vendor_name:
+                distance = nearby.get('distance_meters', 0)
+                if distance <= 2000:  # Within 2km
+                    nearby_mrc = nearby.get('mrc', 0)
+                    nearby_gm = ((client_mrc - nearby_mrc) / client_mrc * 100) if client_mrc > 0 else 0
+
+                    nearby_same_vendor.append({
+                        'service_id': nearby.get('service_id', 'N/A'),
+                        'mrc': nearby_mrc,
+                        'gm': nearby_gm,
+                        'distance_meters': distance
+                    })
+
+        # Generate intelligent negotiation strategy
+        negotiation_strategy = generate_negotiation_strategy(
+            vendor_name=vendor_name,
+            current_mrc=current_mrc,
+            client_mrc=client_mrc,
+            nearby_quotes=nearby_same_vendor,
+            negotiation_stats=stats,
+            renewal_stats=renewal_stats
+        )
+
+        # Calculate targets (kept for backward compatibility)
         target_mrc_50 = client_mrc * 0.5  # 50% GM
         target_mrc_40 = client_mrc * 0.6  # 40% GM
 
@@ -867,7 +897,8 @@ def api_strategy(service_id, vq_qb_id):
             },
             'vendor_vpl': [],
             'alternatives': [],
-            'recommendations': []
+            'recommendations': [],
+            'negotiation_strategy': negotiation_strategy  # NEW: Intelligent strategy
         }
 
         # Add negotiation history
