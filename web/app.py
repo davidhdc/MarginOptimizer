@@ -98,9 +98,16 @@ def api_analyze():
         nearby = vendor_quotes.get('nearby', [])
         vpl = vendor_quotes.get('vpl', [])
 
-        # Get service currency from Quickbase (already fetched in get_service_details)
-        service_currency = service.get('service_currency', 'USD')
-        client_mrc = service.get('client_mrc', 0)
+        # Get Client MRC from VOC Lines (accurate source)
+        voc_line = qb_client.get_voc_line_by_service(service_id)
+        if voc_line.get('has_data'):
+            client_mrc = voc_line.get('client_mrc', 0)
+            service_currency = voc_line.get('currency') or service.get('service_currency', 'USD')
+        else:
+            # Fallback to Neo4j if no VOC Line found
+            client_mrc = service.get('client_mrc', 0)
+            service_currency = service.get('service_currency', 'USD')
+
         service_is_usd = (service_currency == 'USD')
 
         # Prepare response
