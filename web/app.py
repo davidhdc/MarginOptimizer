@@ -779,9 +779,18 @@ def api_strategy(service_id, vq_qb_id):
         if not target_vq:
             return jsonify({'error': f'VQ {vq_qb_id} not found for service'}), 404
 
+        # Get Client MRC from VOC Lines (accurate source)
+        voc_line = qb_client.get_voc_line_by_service(service_id)
+        if voc_line.get('has_data'):
+            client_mrc = voc_line.get('client_mrc', 0)
+            service_currency = voc_line.get('currency') or service.get('service_currency', 'USD')
+        else:
+            # Fallback to Neo4j if no VOC Line found
+            client_mrc = service.get('client_mrc', 0)
+            service_currency = service.get('service_currency', 'USD')
+
         vendor_name = target_vq.get('vendor_name', 'Unknown')
         current_mrc = target_vq.get('mrc', 0)
-        client_mrc = service['client_mrc']
         current_gm = ((client_mrc - current_mrc) / client_mrc * 100) if client_mrc > 0 else 0
 
         # Get negotiation history
@@ -799,7 +808,8 @@ def api_strategy(service_id, vq_qb_id):
                 'service_id': service['service_id'],
                 'customer': service['customer'],
                 'bandwidth_display': service['bandwidth_display'],
-                'client_mrc': client_mrc
+                'client_mrc': client_mrc,
+                'currency': service_currency
             },
             'vendor_quote': {
                 'vendor_name': vendor_name,
