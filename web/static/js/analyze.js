@@ -591,36 +591,6 @@ function displayStrategy(data) {
         `;
     }
 
-    // Targets
-    html += `
-        <div class="card mb-4">
-            <div class="card-header bg-success text-white">
-                <h6 class="mb-0"><i class="fas fa-bullseye"></i> Target Margins</h6>
-            </div>
-            <div class="card-body">
-                <div class="row">
-                    <div class="col-md-6">
-                        <div class="target-card">
-                            <div class="target-label text-warning">
-                                <i class="fas fa-flag"></i> For 40% GM (Minimum Acceptable)
-                            </div>
-                            <div><strong>Target MRC:</strong> ${Utils.formatCurrency(data.targets.gm_40.target_mrc)}</div>
-                            <div><strong>Discount Needed:</strong> <span class="text-primary">${data.targets.gm_40.discount_needed}%</span></div>
-                        </div>
-                    </div>
-                    <div class="col-md-6">
-                        <div class="target-card border-success">
-                            <div class="target-label text-success">
-                                <i class="fas fa-star"></i> For 50% GM (Target)
-                            </div>
-                            <div><strong>Target MRC:</strong> ${Utils.formatCurrency(data.targets.gm_50.target_mrc)}</div>
-                            <div><strong>Discount Needed:</strong> <span class="text-success">${data.targets.gm_50.discount_needed}%</span></div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    `;
 
     // Vendor VPL
     if (data.vendor_vpl && data.vendor_vpl.length > 0) {
