@@ -517,14 +517,16 @@ class QuickbaseClient:
         - Service details
         - Status
 
-        Also fetches Client MRC from Services table (bfwgbisz4) to calculate
-        accurate Gross Margin dynamically.
+        Client MRC is obtained from Field 397 in VOC Lines (primary source).
+        Falls back to Services table (bfwgbisz4) if Field 397 is not available.
 
         Key fields:
         - 234: Service ID
         - 245: Vendor name
         - 135: MRC (USD) Tax Included (Vendor MRC)
         - 254: VOC Line Status
+        - 397: Client MRC (PRIMARY SOURCE for service MRC)
+        - 702: Currency
         - Many other fields for full context
         """
         voc_table_id = "bkr26d56f"
@@ -545,6 +547,8 @@ class QuickbaseClient:
                     247,  # Service Type
                     248,  # Lead Time
                     136,  # NRC (USD) Tax Included
+                    397,  # Client MRC (actual service MRC) - PRIMARY SOURCE
+                    702,  # Currency
                 ],
                 'where': where_clause,
                 'sortBy': [{'fieldId': 3, 'order': 'DESC'}]  # Most recent first
@@ -566,9 +570,17 @@ class QuickbaseClient:
                     voc = records[0]
                     vendor_mrc_usd = float(voc.get('135', {}).get('value', 0))
 
-                    # Get Client MRC from Services table to calculate accurate GM
-                    service_data = self.get_service_mrc(service_id)
-                    client_mrc = service_data.get('mrc', 0)
+                    # Get Client MRC - PRIMARY SOURCE: Field 397 from VOC Line
+                    # This is the actual service MRC that the client pays
+                    client_mrc = float(voc.get('397', {}).get('value', 0))
+                    currency = voc.get('702', {}).get('value')
+
+                    # Fallback: If Field 397 is not available, try Services table
+                    if not client_mrc or client_mrc == 0:
+                        service_data = self.get_service_mrc(service_id)
+                        client_mrc = service_data.get('mrc', 0)
+                        if not currency:
+                            currency = service_data.get('currency')
 
                     # Calculate GM dynamically from latest Quickbase data
                     # GM% = ((Client MRC - Vendor MRC) / Client MRC) * 100
@@ -592,7 +604,8 @@ class QuickbaseClient:
                         'service_type': voc.get('247', {}).get('value'),
                         'lead_time': voc.get('248', {}).get('value'),
                         'nrc_usd': float(voc.get('136', {}).get('value', 0)),
-                        'client_mrc': client_mrc  # Include for reference
+                        'client_mrc': client_mrc,  # From Field 397 (primary) or Services table (fallback)
+                        'currency': currency  # Service currency
                     }
                 else:
                     return {'has_data': False, 'error': 'No VOC Line found for this service'}
