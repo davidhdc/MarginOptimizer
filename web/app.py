@@ -415,20 +415,32 @@ def api_analyze():
                 vendor_data['negotiation_stats'] = {
                     'total_negotiations': stats['total_negotiations'],
                     'success_rate': round(stats['success_rate'], 1),
-                    'avg_discount': round(stats['avg_discount'], 1)
+                    'avg_discount': round(stats['avg_discount'], 1),
+                    'best_discount': round(stats['best_discount'], 1)
                 }
 
                 # Add projected prices with negotiation for each option
                 if stats['avg_discount'] > 0:
                     for option in vendor_data['options']:
+                        # Average discount projection
                         negotiated_mrc = option['mrc'] * (1 - stats['avg_discount']/100)
                         negotiated_gm = ((client_mrc - negotiated_mrc) / client_mrc * 100) if client_mrc > 0 else 0
                         option['projected_with_negotiation'] = {
                             'mrc': round(negotiated_mrc, 2),
                             'gm': round(negotiated_gm, 1),
                             'gm_status': 'success' if negotiated_gm >= 50 else 'warning' if negotiated_gm >= 40 else 'danger',
-                            'discount': round(stats['avg_discount'], 1)
+                            'avg_discount': round(stats['avg_discount'], 1),
+                            'best_discount': round(stats['best_discount'], 1)
                         }
+
+                        # Best discount projection
+                        if stats['best_discount'] > 0:
+                            best_negotiated_mrc = option['mrc'] * (1 - stats['best_discount']/100)
+                            best_negotiated_gm = ((client_mrc - best_negotiated_mrc) / client_mrc * 100) if client_mrc > 0 else 0
+
+                            option['projected_with_negotiation']['best_mrc'] = round(best_negotiated_mrc, 2)
+                            option['projected_with_negotiation']['best_gm'] = round(best_negotiated_gm, 1)
+                            option['projected_with_negotiation']['best_gm_status'] = 'success' if best_negotiated_gm >= 50 else 'warning' if best_negotiated_gm >= 40 else 'danger'
 
         response['vpl_options'] = list(vpl_by_vendor.values())
 
