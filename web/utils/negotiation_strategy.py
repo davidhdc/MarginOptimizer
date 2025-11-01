@@ -107,7 +107,7 @@ def generate_negotiation_strategy(
                     'type': 'nearby_pricing',
                     'priority': 'high',
                     'title': f'{vendor_name} has {lower_prices_count} nearby quote(s) with lower pricing',
-                    'description': f'Best nearby quote: {best_nearby["mrc"]} ({best_nearby["discount_vs_current"]}% lower) at {best_nearby["distance_km"]}km',
+                    'description': f'Best nearby quote: {best_nearby["mrc"]} ({best_nearby["discount_vs_current"]}% lower) at {best_nearby["distance_km"]}km. Strong negotiation leverage - vendor offers better pricing for similar locations.',
                     'target_discount': best_nearby['discount_vs_current'],
                     'confidence': 'high'
                 })
@@ -149,35 +149,28 @@ def generate_negotiation_strategy(
         if avg_discount > 0:
             confidence = 'high' if total_negotiations >= 10 else 'medium' if total_negotiations >= 5 else 'low'
 
+            # Always recommend negotiation based on historical data
             strategy['recommendations'].append({
                 'type': 'historical_new_contract',
                 'priority': 'high',
                 'title': f'{vendor_name} historically offers {avg_discount:.1f}% average discount on new contracts',
-                'description': f'Based on {total_negotiations} negotiations with {success_rate:.1f}% success rate. Best case: {best_discount:.1f}% discount.',
+                'description': f'Based on {total_negotiations} negotiations with {success_rate:.1f}% success rate. Best case: {best_discount:.1f}% discount. Projected GM with avg discount: {projected_avg_gm:.1f}%',
                 'target_discount': avg_discount,
                 'best_case_discount': best_discount,
                 'confidence': confidence,
                 'sample_size': total_negotiations
             })
 
-            # Check if historical avg reaches GM targets
-            if projected_avg_gm >= 50:
+            # Always show best case scenario when available
+            if best_discount > avg_discount:
                 strategy['recommendations'].append({
-                    'type': 'target_achievable',
+                    'type': 'best_case_opportunity',
                     'priority': 'high',
-                    'title': f'50% GM target achievable with average historical discount',
-                    'description': f'Applying {avg_discount:.1f}% discount would result in {projected_avg_gm:.1f}% GM',
-                    'target_discount': avg_discount,
-                    'confidence': confidence
-                })
-            elif projected_best_gm >= 50:
-                strategy['recommendations'].append({
-                    'type': 'target_achievable_best',
-                    'priority': 'medium',
-                    'title': f'50% GM target achievable with best historical discount',
-                    'description': f'Applying {best_discount:.1f}% discount would result in {projected_best_gm:.1f}% GM',
+                    'title': f'Best historical discount: {best_discount:.1f}% (improve margin to {projected_best_gm:.1f}% GM)',
+                    'description': f'{vendor_name} has previously offered up to {best_discount:.1f}% discount. Even if current GM is acceptable, there\'s opportunity for improvement based on vendor history.',
                     'target_discount': best_discount,
-                    'confidence': 'medium'
+                    'confidence': 'medium',
+                    'sample_size': total_negotiations
                 })
 
     # 3. Analyze historical renewals
@@ -202,7 +195,7 @@ def generate_negotiation_strategy(
                 'type': 'historical_renewal',
                 'priority': 'medium',
                 'title': f'{vendor_name} historically offers {renewal_avg_discount:.1f}% average discount on renewals',
-                'description': f'Based on {total_renewals} renewals with {renewal_success_rate:.1f}% success rate. Projected GM: {projected_renewal_gm:.1f}%',
+                'description': f'Based on {total_renewals} renewals with {renewal_success_rate:.1f}% success rate. Projected GM with discount: {projected_renewal_gm:.1f}%. Negotiate based on vendor\'s proven flexibility.',
                 'target_discount': renewal_avg_discount,
                 'confidence': confidence,
                 'sample_size': total_renewals
