@@ -26,6 +26,12 @@ CORS(app)
 neo4j_client = None
 qb_client = None
 
+# Cache for vendor stats to avoid repeated Quickbase calls during same request
+# This dramatically improves performance when processing many VPL options from same vendor
+vendor_stats_cache = {}
+renewal_stats_cache = {}
+delivered_mrc_cache = {}
+
 
 def convert_neo4j_types(obj):
     """
@@ -66,6 +72,27 @@ def init_clients():
         qb_client = QuickbaseClient()
 
 
+def get_vendor_stats_cached(vendor_name):
+    """Get vendor negotiation stats with caching"""
+    if vendor_name not in vendor_stats_cache:
+        vendor_stats_cache[vendor_name] = qb_client.get_vendor_negotiation_stats(vendor_name)
+    return vendor_stats_cache[vendor_name]
+
+
+def get_renewal_stats_cached(vendor_name):
+    """Get vendor renewal stats with caching"""
+    if vendor_name not in renewal_stats_cache:
+        renewal_stats_cache[vendor_name] = qb_client.get_vendor_renewal_stats(vendor_name)
+    return renewal_stats_cache[vendor_name]
+
+
+def get_delivered_mrc_cached(vendor_name):
+    """Get vendor delivered MRC with caching"""
+    if vendor_name not in delivered_mrc_cache:
+        delivered_mrc_cache[vendor_name] = qb_client.get_vendor_delivered_mrc_total(vendor_name)
+    return delivered_mrc_cache[vendor_name]
+
+
 @app.route('/')
 def index():
     """Main page"""
@@ -76,6 +103,12 @@ def index():
 def api_analyze():
     """API endpoint to analyze a service"""
     try:
+        # Clear cache at start of each request
+        global vendor_stats_cache, renewal_stats_cache, delivered_mrc_cache
+        vendor_stats_cache = {}
+        renewal_stats_cache = {}
+        delivered_mrc_cache = {}
+
         data = request.json
         service_id = data.get('service_id', '').strip()
         vq_qb_id = data.get('vq_qb_id', '').strip()
@@ -102,6 +135,13 @@ def api_analyze():
         associated = vendor_quotes.get('associated', [])
         nearby = vendor_quotes.get('nearby', [])
         vpl = vendor_quotes.get('vpl', [])
+
+        # Limit VPL options to prevent timeout on services with hundreds of options
+        # This improves performance dramatically while keeping enough options for analysis
+        MAX_VPL_OPTIONS = 150
+        if len(vpl) > MAX_VPL_OPTIONS:
+            print(f"[Performance] Limiting VPL from {len(vpl)} to {MAX_VPL_OPTIONS} options")
+            vpl = vpl[:MAX_VPL_OPTIONS]
 
         # Get Client MRC from VOC Lines (accurate source)
         voc_line = qb_client.get_voc_line_by_service(service_id)
@@ -157,13 +197,13 @@ def api_analyze():
             bw_display = f"{bw_bps / 1_000_000:.0f} Mbps" if bw_bps else vq.get('bandwidth', 'N/A')
 
             # Get negotiation stats (for VQ creation)
-            stats = qb_client.get_vendor_negotiation_stats(vendor_name)
+            stats = get_vendor_stats_cached(vendor_name)
 
             # Get renewal stats (for renewals)
-            renewal_stats = qb_client.get_vendor_renewal_stats(vendor_name)
+            renewal_stats = get_renewal_stats_cached(vendor_name)
 
             # Get delivered MRC total for this vendor
-            delivered_mrc_stats = qb_client.get_vendor_delivered_mrc_total(vendor_name)
+            delivered_mrc_stats = get_delivered_mrc_cached(vendor_name)
 
             vq_data = {
                 'vendor_name': vendor_name,
@@ -258,7 +298,7 @@ def api_analyze():
             bw_display = f"{bw_bps / 1_000_000:.0f} Mbps" if bw_bps else vq.get('bandwidth', 'N/A')
 
             # Get negotiation stats
-            stats = qb_client.get_vendor_negotiation_stats(vendor_name)
+            stats = get_vendor_stats_cached(vendor_name)
 
             vq_data = {
                 'vendor_name': vendor_name,
@@ -415,7 +455,7 @@ def api_analyze():
 
         # Add negotiation stats to VPL vendors
         for vendor_name, vendor_data in vpl_by_vendor.items():
-            stats = qb_client.get_vendor_negotiation_stats(vendor_name)
+            stats = get_vendor_stats_cached(vendor_name)
             if stats and stats.get('has_data'):
                 vendor_data['negotiation_stats'] = {
                     'total_negotiations': stats['total_negotiations'],
@@ -492,13 +532,13 @@ def api_analyze_renewal():
         service_currency = voc_line.get('currency') or service.get('service_currency', 'USD')
         
         # Get renewal statistics for current vendor
-        renewal_stats = qb_client.get_vendor_renewal_stats(current_vendor)
+        renewal_stats = get_renewal_stats_cached(current_vendor)
         
         # Get detailed renewal history for this vendor
         renewal_history = qb_client.get_renewal_history_by_vendor(current_vendor, service_id)
         
         # Get negotiation stats for current vendor (from VQ creation)
-        negotiation_stats = qb_client.get_vendor_negotiation_stats(current_vendor)
+        negotiation_stats = get_vendor_stats_cached(current_vendor)
         
         # Get vendor quotes (nearby and VPL options)
         vendor_quotes = neo4j_client.get_vendor_quotes_for_service(
@@ -833,8 +873,8 @@ def api_strategy(service_id, vq_qb_id):
         current_gm = ((client_mrc - current_mrc) / client_mrc * 100) if client_mrc > 0 else 0
 
         # Get negotiation and renewal history
-        stats = qb_client.get_vendor_negotiation_stats(vendor_name)
-        renewal_stats = qb_client.get_vendor_renewal_stats(vendor_name)
+        stats = get_vendor_stats_cached(vendor_name)
+        renewal_stats = get_renewal_stats_cached(vendor_name)
 
         # Get nearby quotes from same vendor for pricing evidence
         nearby_quotes_data = vendor_quotes.get('nearby', [])
