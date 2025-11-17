@@ -573,11 +573,13 @@ class QuickbaseClient:
                 if records:
                     # Get the most recent VOC Line (first in sorted results)
                     voc = records[0]
-                    vendor_mrc_usd = float(voc.get('135', {}).get('value', 0))
+                    vendor_mrc_value = voc.get('135', {}).get('value')
+                    vendor_mrc_usd = float(vendor_mrc_value) if vendor_mrc_value is not None else 0.0
 
                     # Get Client MRC - PRIMARY SOURCE: Field 397 from VOC Line
                     # This is the actual service MRC that the client pays
-                    client_mrc = float(voc.get('397', {}).get('value', 0))
+                    client_mrc_value = voc.get('397', {}).get('value')
+                    client_mrc = float(client_mrc_value) if client_mrc_value is not None else 0.0
                     currency = voc.get('702', {}).get('value')
 
                     # Fallback: If Field 397 is not available, try Services table
@@ -596,6 +598,9 @@ class QuickbaseClient:
                         gm_usd = client_mrc - vendor_mrc_usd
                         gm_percent = (gm_usd / client_mrc) * 100
 
+                    nrc_value = voc.get('136', {}).get('value')
+                    nrc_usd = float(nrc_value) if nrc_value is not None else 0.0
+
                     return {
                         'has_data': True,
                         'record_id': voc.get('3', {}).get('value'),
@@ -608,7 +613,7 @@ class QuickbaseClient:
                         'bandwidth': voc.get('246', {}).get('value'),
                         'service_type': voc.get('247', {}).get('value'),
                         'lead_time': voc.get('248', {}).get('value'),
-                        'nrc_usd': float(voc.get('136', {}).get('value', 0)),
+                        'nrc_usd': nrc_usd,
                         'client_mrc': client_mrc,  # From Field 397 (primary) or Services table (fallback)
                         'currency': currency  # Service currency
                     }
