@@ -149,12 +149,14 @@ class Neo4jClient:
         cutoff_str = cutoff_date.strftime('%Y-%m-%d')
 
         # Query para buscar VendorQuotes en Neo4j
+        # Exclude Connectbase quotes (identified by 'connectbase' in comments field)
         query = f"""
         MATCH (vq:VendorQuote)
         WHERE vq.service_type = '{service_type}'
           AND vq.bandwidth_bps >= {bandwidth_min}
           AND vq.bandwidth_bps <= {bandwidth_max}
           AND vq.created_at >= date('{cutoff_str}')
+          AND (vq.comments IS NULL OR NOT toLower(vq.comments) CONTAINS 'connectbase')
         """
 
         if exclude_vendor:
@@ -310,6 +312,7 @@ class Neo4jClient:
             Dict with 'associated' and 'nearby' lists of vendor quote records
         """
         # Get associated VendorQuotes
+        # Exclude Connectbase quotes (identified by 'connectbase' in comments field)
         query_associated = """
         MATCH (s:Service {service_id: $service_id})-[:RELATED_TO]->(q:Quote)
         MATCH (q)-[:REQUIRES]->(t:Task)
@@ -317,6 +320,7 @@ class Neo4jClient:
         WHERE vq.fk_task_id = t.id
           AND vq.status IN ['desk_results_feasible', 'site_survey_results_feasible']
           AND vq.mrc IS NOT NULL
+          AND (vq.comments IS NULL OR NOT toLower(vq.comments) CONTAINS 'connectbase')
         OPTIONAL MATCH (vq)-[:OF_TYPE]->(st:ServiceType)
         OPTIONAL MATCH (vq)-[:BANDWIDTH_DOWN_OF]->(bw:Bandwidth)
         RETURN vq.id as vq_id,
@@ -390,6 +394,7 @@ class Neo4jClient:
 
                 # Get nearby VendorQuotes (IGIQ data) from last 12 months
                 # Note: Bandwidth filtering happens in Python to allow flexibility
+                # Exclude Connectbase quotes (identified by 'connectbase' in comments field)
                 query_nearby = f"""
                 MATCH (vq:VendorQuote)
                 WHERE vq.latitude >= {lat_min} AND vq.latitude <= {lat_max}
@@ -397,6 +402,7 @@ class Neo4jClient:
                   AND vq.status IN ['desk_results_feasible', 'site_survey_results_feasible']
                   AND vq.mrc IS NOT NULL
                   AND vq.date_created >= datetime() - duration({{months: 12}})
+                  AND (vq.comments IS NULL OR NOT toLower(vq.comments) CONTAINS 'connectbase')
                 OPTIONAL MATCH (vq)-[:OF_TYPE]->(st:ServiceType)
                 OPTIONAL MATCH (vq)-[:BANDWIDTH_DOWN_OF]->(bw:Bandwidth)
                 WHERE (st.id = {service_type_id} OR {service_type_id} IS NULL)
@@ -626,8 +632,10 @@ class Neo4jClient:
 
         try:
             # Query prioritizes contracts with MRC data, then orders by date
+            # Exclude Connectbase quotes (identified by 'connectbase' in comments field)
             query = """
                 MATCH (v:Vendor {name: $vendor_name})-[:PROVIDED_QUOTE]->(vq:VendorQuote)
+                WHERE (vq.comments IS NULL OR NOT toLower(vq.comments) CONTAINS 'connectbase')
                 OPTIONAL MATCH (vq)-[:BANDWIDTH_DOWN_OF]->(bw:Bandwidth)
                 WITH vq, bw
                 ORDER BY
