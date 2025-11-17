@@ -8,3 +8,4 @@ colorama>=0.4.6
 tqdm>=4.65.0
 neo4j>=5.14.0
 flask>=3.0.0
+flask-cors>=4.0.0

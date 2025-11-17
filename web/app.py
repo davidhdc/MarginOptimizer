@@ -5,6 +5,7 @@ Flask application for analyzing vendor quotes and generating negotiation strateg
 """
 
 from flask import Flask, render_template, request, jsonify, session
+from flask_cors import CORS
 from datetime import datetime
 import traceback
 import uuid
@@ -17,6 +18,9 @@ from utils.negotiation_strategy import generate_negotiation_strategy
 
 app = Flask(__name__)
 app.secret_key = 'margin-optimizer-secret-key-change-in-production'
+
+# Enable CORS
+CORS(app)
 
 # Initialize clients globally
 neo4j_client = None
