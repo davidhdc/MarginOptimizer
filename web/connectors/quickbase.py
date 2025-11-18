@@ -416,7 +416,9 @@ class QuickbaseClient:
 
                 for rec in records:
                     discount = rec.get('47', {}).get('value', 0)
-                    if discount and discount > 0:
+                    # Only include valid discounts: > 0% and < 100%
+                    # Quickbase stores as decimal: 0.24 = 24%, so we filter < 1.0 (100%)
+                    if discount and discount > 0 and discount < 1.0:
                         renewals_with_discount.append(discount)
 
                 successful_renewals = len(renewals_with_discount)
