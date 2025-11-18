@@ -532,6 +532,9 @@ def api_analyze_renewal():
         client_mrc = voc_line.get('client_mrc', 0)  # In local currency
         client_mrc_usd = voc_line.get('client_mrc_usd', 0)  # In USD
         service_currency = voc_line.get('currency') or service.get('service_currency', 'USD')
+
+        # Alias for backward compatibility with recommendations code
+        current_mrc = vendor_mrc  # Vendor MRC in local currency
         
         # Get renewal statistics for current vendor
         renewal_stats = get_renewal_stats_cached(current_vendor)
