@@ -611,7 +611,8 @@ def api_analyze_renewal():
                 'total_renewals': renewal_stats['total_renewals'],
                 'successful_renewals': renewal_stats['successful_renewals'],
                 'success_rate': round(renewal_stats['success_rate'], 1),
-                'avg_discount': round(renewal_stats['avg_discount'], 1)
+                'avg_discount': round(renewal_stats['avg_discount'], 1),
+                'max_discount': round(renewal_stats['max_discount'], 1)
             }
         
         # Add negotiation stats if available
@@ -749,18 +750,34 @@ def api_analyze_renewal():
         # Recommendation 1: Based on renewal history success rate
         if renewal_stats and renewal_stats.get('has_data'):
             if renewal_stats['success_rate'] >= 50:
-                expected_discount = renewal_stats['avg_discount']
-                expected_mrc = current_mrc * (1 - expected_discount/100)
-                expected_gm = ((client_mrc - expected_mrc) / client_mrc * 100) if client_mrc > 0 else 0
-                
+                # Scenario A: Using average discount
+                avg_expected_discount = renewal_stats['avg_discount']
+                avg_expected_mrc = current_mrc * (1 - avg_expected_discount/100)
+                avg_expected_gm = ((client_mrc - avg_expected_mrc) / client_mrc * 100) if client_mrc > 0 else 0
+
                 recommendations.append({
                     'priority': 1,
-                    'strategy': f"Negotiate renewal with {current_vendor}",
-                    'rationale': f"High renewal success rate ({renewal_stats['success_rate']:.1f}%) with average {renewal_stats['avg_discount']:.1f}% discount",
-                    'expected_discount': round(expected_discount, 1),
-                    'expected_mrc': round(expected_mrc, 2),
-                    'expected_gm': round(expected_gm, 1),
+                    'strategy': f"Negotiate renewal with {current_vendor} (Conservative Scenario)",
+                    'rationale': f"High renewal success rate ({renewal_stats['success_rate']:.1f}%). Conservative estimate using average discount of {renewal_stats['avg_discount']:.1f}%",
+                    'expected_discount': round(avg_expected_discount, 1),
+                    'expected_mrc': round(avg_expected_mrc, 2),
+                    'expected_gm': round(avg_expected_gm, 1),
                     'confidence': 'high' if renewal_stats['success_rate'] >= 70 else 'medium'
+                })
+
+                # Scenario B: Using maximum discount (best case)
+                max_expected_discount = renewal_stats['max_discount']
+                max_expected_mrc = current_mrc * (1 - max_expected_discount/100)
+                max_expected_gm = ((client_mrc - max_expected_mrc) / client_mrc * 100) if client_mrc > 0 else 0
+
+                recommendations.append({
+                    'priority': 2,
+                    'strategy': f"Negotiate renewal with {current_vendor} (Best Case Scenario)",
+                    'rationale': f"Best case scenario using maximum historical discount of {renewal_stats['max_discount']:.1f}%. This represents the best discount previously achieved with this vendor.",
+                    'expected_discount': round(max_expected_discount, 1),
+                    'expected_mrc': round(max_expected_mrc, 2),
+                    'expected_gm': round(max_expected_gm, 1),
+                    'confidence': 'medium'
                 })
             else:
                 recommendations.append({
@@ -770,7 +787,7 @@ def api_analyze_renewal():
                     'confidence': 'medium'
                 })
         
-        # Recommendation 2: Based on VPL availability from current vendor
+        # Recommendation 3: Based on VPL availability from current vendor
         current_vendor_vpls = [v for v in response['vpl_options'] if v['is_current_vendor']]
         if current_vendor_vpls:
             best_current_vpl = min(current_vendor_vpls, key=lambda x: x['mrc'])
@@ -779,7 +796,7 @@ def api_analyze_renewal():
                 savings_pct = (savings / current_mrc_in_service_currency * 100) if current_mrc_in_service_currency > 0 else 0
 
                 recommendations.append({
-                    'priority': 2,
+                    'priority': 3,
                     'strategy': f"Request VPL pricing from {current_vendor}",
                     'rationale': f"VPL available at {best_current_vpl['mrc']:.2f} {service_currency} ({best_current_vpl['bandwidth']}) - {savings_pct:.1f}% lower than current MRC",
                     'expected_mrc': best_current_vpl['mrc'],
@@ -788,7 +805,7 @@ def api_analyze_renewal():
                     'vendor_name': current_vendor
                 })
 
-        # Recommendation 3: Based on alternative vendor VPLs at same location
+        # Recommendation 4: Based on alternative vendor VPLs at same location
         alternative_vendor_vpls = [v for v in response['vpl_options'] if not v['is_current_vendor']]
         if alternative_vendor_vpls:
             # Find best alternative VPL
@@ -798,7 +815,7 @@ def api_analyze_renewal():
                 savings_pct = (savings / current_mrc_in_service_currency * 100) if current_mrc_in_service_currency > 0 else 0
 
                 recommendations.append({
-                    'priority': 3,
+                    'priority': 4,
                     'strategy': f"Leverage {best_alt_vpl['vendor_name']} VPL as negotiation leverage",
                     'rationale': f"Alternative vendor VPL at {best_alt_vpl['mrc']:.2f} {service_currency} ({best_alt_vpl['bandwidth']}) - {savings_pct:.1f}% lower. Use as leverage with {current_vendor} or consider switching",
                     'expected_mrc': best_alt_vpl['mrc'],
@@ -807,11 +824,11 @@ def api_analyze_renewal():
                     'vendor_name': best_alt_vpl['vendor_name'],
                     'alternative_vendor': True
                 })
-        
-        # Recommendation 4: Market comparison - low margin alert
+
+        # Recommendation 5: Market comparison - low margin alert
         if current_gm < 40 and not alternative_vendor_vpls:
             recommendations.append({
-                'priority': 4,
+                'priority': 5,
                 'strategy': "Evaluate alternative vendors",
                 'rationale': f"Current gross margin ({current_gm:.1f}%) is below target (40%). No VPL alternatives found at this location.",
                 'confidence': 'medium'

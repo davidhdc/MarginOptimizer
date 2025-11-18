@@ -371,6 +371,7 @@ class QuickbaseClient:
         Returns statistics about successful renewal negotiations:
         - Success rate: % of renewals where a discount > 0% was obtained
         - Average discount: Average % discount when discount > 0%
+        - Maximum discount: Best (highest) % discount achieved
 
         Uses table bqrc5mm8e (Renewals) with fields:
         - 14: Vendor name
@@ -405,7 +406,8 @@ class QuickbaseClient:
                         'total_renewals': 0,
                         'successful_renewals': 0,
                         'success_rate': 0,
-                        'avg_discount': 0
+                        'avg_discount': 0,
+                        'max_discount': 0
                     }
 
                 # Process renewal records
@@ -421,13 +423,15 @@ class QuickbaseClient:
                 success_rate = (successful_renewals / total_renewals * 100) if total_renewals > 0 else 0
                 # Quickbase stores discount as decimal (0.24 = 24%), convert to percentage
                 avg_discount = (sum(renewals_with_discount) / successful_renewals * 100) if successful_renewals > 0 else 0
+                max_discount = (max(renewals_with_discount) * 100) if renewals_with_discount else 0
 
                 return {
                     'has_data': True,
                     'total_renewals': total_renewals,
                     'successful_renewals': successful_renewals,
                     'success_rate': success_rate,
-                    'avg_discount': avg_discount
+                    'avg_discount': avg_discount,
+                    'max_discount': max_discount
                 }
 
             return {
@@ -435,7 +439,8 @@ class QuickbaseClient:
                 'total_renewals': 0,
                 'successful_renewals': 0,
                 'success_rate': 0,
-                'avg_discount': 0
+                'avg_discount': 0,
+                'max_discount': 0
             }
 
         except Exception as e:
@@ -445,7 +450,8 @@ class QuickbaseClient:
                 'total_renewals': 0,
                 'successful_renewals': 0,
                 'success_rate': 0,
-                'avg_discount': 0
+                'avg_discount': 0,
+                'max_discount': 0
             }
 
     def get_vendor_delivered_mrc_total(self, vendor_name: str) -> Dict:

@@ -148,6 +148,7 @@ function displayVendorStats(data) {
                             <span class="badge bg-${successClass}">${rs.success_rate.toFixed(1)}%</span>
                         </p>
                         <p><strong>Average Discount:</strong> ${rs.avg_discount.toFixed(1)}%</p>
+                        <p><strong>Maximum Discount:</strong> <span class="badge bg-success">${rs.max_discount.toFixed(1)}%</span></p>
                         <p class="text-muted small mb-0">
                             ${rs.successful_renewals} of ${rs.total_renewals} renewals obtained discounts
                         </p>
