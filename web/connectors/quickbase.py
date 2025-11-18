@@ -528,10 +528,11 @@ class QuickbaseClient:
         Key fields:
         - 234: Service ID
         - 245: Vendor name
-        - 135: MRC (USD) Tax Included (Vendor MRC)
+        - 135: MRC (USD) Tax Included (Vendor MRC - ALWAYS in USD, needs conversion to local currency)
         - 254: VOC Line Status
-        - 397: Client MRC (PRIMARY SOURCE for service MRC)
-        - 702: Currency
+        - 397: Client MRC (PRIMARY SOURCE for service MRC - in local currency)
+        - 702: Currency (fallback to Services table if null)
+        - 136: NRC (USD) Tax Included (ALWAYS in USD, needs conversion to local currency)
         - Many other fields for full context
         """
         voc_table_id = "bkr26d56f"
@@ -573,11 +574,13 @@ class QuickbaseClient:
                 if records:
                     # Get the most recent VOC Line (first in sorted results)
                     voc = records[0]
-                    vendor_mrc_value = voc.get('135', {}).get('value')
-                    vendor_mrc = float(vendor_mrc_value) if vendor_mrc_value is not None else 0.0
+
+                    # Field 135: MRC (USD) Tax Included - this is ALWAYS in USD
+                    vendor_mrc_usd_value = voc.get('135', {}).get('value')
+                    vendor_mrc_usd = float(vendor_mrc_usd_value) if vendor_mrc_usd_value is not None else 0.0
 
                     # Get Client MRC - PRIMARY SOURCE: Field 397 from VOC Line
-                    # This is the actual service MRC that the client pays
+                    # This is the actual service MRC that the client pays (in local currency)
                     client_mrc_value = voc.get('397', {}).get('value')
                     client_mrc = float(client_mrc_value) if client_mrc_value is not None else 0.0
                     currency = voc.get('702', {}).get('value')
@@ -589,33 +592,40 @@ class QuickbaseClient:
                         if not currency:
                             currency = service_data.get('currency')
 
-                    # Calculate GM dynamically from latest Quickbase data
-                    # GM% = ((Client MRC - Vendor MRC) / Client MRC) * 100
-                    # Both values are in local currency (from Field 135 and Field 397)
-                    gm_percent = 0.0
-                    gm_local = 0.0
-
-                    if client_mrc and client_mrc > 0:
-                        gm_local = client_mrc - vendor_mrc
-                        gm_percent = (gm_local / client_mrc) * 100
-
-                    # Convert to USD if currency is BRL
-                    vendor_mrc_usd = vendor_mrc
-                    client_mrc_usd = client_mrc
-                    gm_usd = gm_local
+                    # Convert Vendor MRC from USD to local currency if needed
+                    vendor_mrc = vendor_mrc_usd  # Default: assume USD
+                    client_mrc_usd = client_mrc  # Default: assume USD
                     brl_rate = None
 
                     if currency and currency.upper() == 'BRL':
                         from utils.currency import get_usd_to_brl_rate
                         brl_rate = get_usd_to_brl_rate()
                         if brl_rate and brl_rate > 0:
-                            vendor_mrc_usd = vendor_mrc / brl_rate
+                            # Convert Vendor MRC from USD to BRL
+                            vendor_mrc = vendor_mrc_usd * brl_rate
+                            # Convert Client MRC from BRL to USD
                             client_mrc_usd = client_mrc / brl_rate
+
+                    # Calculate GM dynamically from latest Quickbase data
+                    # GM% = ((Client MRC - Vendor MRC) / Client MRC) * 100
+                    # Both values must be in the same currency (local currency)
+                    gm_percent = 0.0
+                    gm_local = 0.0
+                    gm_usd = 0.0
+
+                    if client_mrc and client_mrc > 0:
+                        gm_local = client_mrc - vendor_mrc
+                        gm_percent = (gm_local / client_mrc) * 100
+                        # GM in USD
+                        if currency and currency.upper() == 'BRL' and brl_rate and brl_rate > 0:
                             gm_usd = gm_local / brl_rate
+                        else:
+                            gm_usd = gm_local
 
                     nrc_value = voc.get('136', {}).get('value')
-                    nrc = float(nrc_value) if nrc_value is not None else 0.0
-                    nrc_usd = nrc / brl_rate if (brl_rate and brl_rate > 0) else nrc
+                    nrc_usd = float(nrc_value) if nrc_value is not None else 0.0
+                    # Convert NRC from USD to local currency if needed
+                    nrc = nrc_usd * brl_rate if (brl_rate and brl_rate > 0) else nrc_usd
 
                     return {
                         'has_data': True,
