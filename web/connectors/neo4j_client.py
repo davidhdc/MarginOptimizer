@@ -149,14 +149,12 @@ class Neo4jClient:
         cutoff_str = cutoff_date.strftime('%Y-%m-%d')
 
         # Query para buscar VendorQuotes en Neo4j
-        # Exclude Connectbase quotes (identified by 'connectbase' in comments field)
         query = f"""
         MATCH (vq:VendorQuote)
         WHERE vq.service_type = '{service_type}'
           AND vq.bandwidth_bps >= {bandwidth_min}
           AND vq.bandwidth_bps <= {bandwidth_max}
           AND vq.created_at >= date('{cutoff_str}')
-          AND (vq.comments IS NULL OR NOT toLower(vq.comments) CONTAINS 'connectbase')
         """
 
         if exclude_vendor:
@@ -170,7 +168,8 @@ class Neo4jClient:
                vq.bandwidth_bps AS bandwidth_bps,
                vq.service_type AS service_type,
                vq.created_at AS quote_date,
-               vq.status AS status
+               vq.status AS status,
+               vq.comments AS comments
         ORDER BY vq.mrc ASC
         LIMIT 50
         """
@@ -179,6 +178,11 @@ class Neo4jClient:
             with self.driver.session(database=self.database) as session:
                 result = session.run(query)
                 records = [dict(record) for record in result]
+                # Filter out Connectbase quotes in Python (faster than Neo4j WHERE clause)
+                records = [
+                    vq for vq in records
+                    if not (vq.get('comments') and 'connectbase' in str(vq.get('comments')).lower())
+                ]
                 print(f"[Neo4j] Found {len(records)} vendor quotes")
                 return records
         except Exception as e:
@@ -312,7 +316,6 @@ class Neo4jClient:
             Dict with 'associated' and 'nearby' lists of vendor quote records
         """
         # Get associated VendorQuotes
-        # Exclude Connectbase quotes (identified by 'connectbase' in comments field)
         query_associated = """
         MATCH (s:Service {service_id: $service_id})-[:RELATED_TO]->(q:Quote)
         MATCH (q)-[:REQUIRES]->(t:Task)
@@ -320,7 +323,6 @@ class Neo4jClient:
         WHERE vq.fk_task_id = t.id
           AND vq.status IN ['desk_results_feasible', 'site_survey_results_feasible']
           AND vq.mrc IS NOT NULL
-          AND (vq.comments IS NULL OR NOT toLower(vq.comments) CONTAINS 'connectbase')
         OPTIONAL MATCH (vq)-[:OF_TYPE]->(st:ServiceType)
         OPTIONAL MATCH (vq)-[:BANDWIDTH_DOWN_OF]->(bw:Bandwidth)
         RETURN vq.id as vq_id,
@@ -333,6 +335,7 @@ class Neo4jClient:
                vq.latitude as latitude,
                vq.longitude as longitude,
                vq.date_created as date_created,
+               vq.comments as comments,
                st.name as service_type,
                st.id as service_type_id,
                bw.name as bandwidth,
@@ -342,6 +345,13 @@ class Neo4jClient:
         """
 
         associated_results = self.execute_cypher(query_associated, {"service_id": service_id})
+
+        # Filter out Connectbase quotes in Python (faster than Neo4j WHERE clause)
+        if associated_results:
+            associated_results = [
+                vq for vq in associated_results
+                if not (vq.get('comments') and 'connectbase' in str(vq.get('comments')).lower())
+            ]
 
         # Add vendor info to associated quotes
         if associated_results:
@@ -394,7 +404,6 @@ class Neo4jClient:
 
                 # Get nearby VendorQuotes (IGIQ data) from last 12 months
                 # Note: Bandwidth filtering happens in Python to allow flexibility
-                # Exclude Connectbase quotes (identified by 'connectbase' in comments field)
                 query_nearby = f"""
                 MATCH (vq:VendorQuote)
                 WHERE vq.latitude >= {lat_min} AND vq.latitude <= {lat_max}
@@ -402,7 +411,6 @@ class Neo4jClient:
                   AND vq.status IN ['desk_results_feasible', 'site_survey_results_feasible']
                   AND vq.mrc IS NOT NULL
                   AND vq.date_created >= datetime() - duration({{months: 12}})
-                  AND (vq.comments IS NULL OR NOT toLower(vq.comments) CONTAINS 'connectbase')
                 OPTIONAL MATCH (vq)-[:OF_TYPE]->(st:ServiceType)
                 OPTIONAL MATCH (vq)-[:BANDWIDTH_DOWN_OF]->(bw:Bandwidth)
                 WHERE (st.id = {service_type_id} OR {service_type_id} IS NULL)
@@ -416,6 +424,7 @@ class Neo4jClient:
                        vq.latitude as latitude,
                        vq.longitude as longitude,
                        vq.date_created as date_created,
+                       vq.comments as comments,
                        st.name as service_type,
                        st.id as service_type_id,
                        bw.name as bandwidth,
@@ -426,6 +435,13 @@ class Neo4jClient:
                 """
 
                 nearby_results = self.execute_cypher(query_nearby)
+
+                # Filter out Connectbase quotes in Python (faster than Neo4j WHERE clause)
+                if nearby_results:
+                    nearby_results = [
+                        vq for vq in nearby_results
+                        if not (vq.get('comments') and 'connectbase' in str(vq.get('comments')).lower())
+                    ]
 
                 if nearby_results:
                     # Calculate exact distances and filter
@@ -632,10 +648,8 @@ class Neo4jClient:
 
         try:
             # Query prioritizes contracts with MRC data, then orders by date
-            # Exclude Connectbase quotes (identified by 'connectbase' in comments field)
             query = """
                 MATCH (v:Vendor {name: $vendor_name})-[:PROVIDED_QUOTE]->(vq:VendorQuote)
-                WHERE (vq.comments IS NULL OR NOT toLower(vq.comments) CONTAINS 'connectbase')
                 OPTIONAL MATCH (vq)-[:BANDWIDTH_DOWN_OF]->(bw:Bandwidth)
                 WITH vq, bw
                 ORDER BY
@@ -646,10 +660,17 @@ class Neo4jClient:
                        vq.date_created as quote_date,
                        vq.fk_task_id as task_id,
                        vq.mrc as mrc,
+                       vq.comments as comments,
                        bw.label as bandwidth
             """
 
             results = self.execute_cypher(query, {"vendor_name": vendor_name, "limit": limit})
+
+            # Filter out Connectbase quotes in Python (faster than Neo4j WHERE clause)
+            results = [
+                vq for vq in results
+                if not (vq.get('comments') and 'connectbase' in str(vq.get('comments')).lower())
+            ]
 
             contracts = []
             for r in results:
