@@ -502,6 +502,12 @@ def api_analyze():
 def api_analyze_renewal():
     """API endpoint to analyze a service for renewal negotiation"""
     try:
+        # Clear cache at start of each request
+        global vendor_stats_cache, renewal_stats_cache, delivered_mrc_cache
+        vendor_stats_cache = {}
+        renewal_stats_cache = {}
+        delivered_mrc_cache = {}
+
         data = request.json
         service_id = data.get('service_id', '').strip()
 
@@ -755,30 +761,34 @@ def api_analyze_renewal():
                 avg_expected_mrc = current_mrc * (1 - avg_expected_discount/100)
                 avg_expected_gm = ((client_mrc - avg_expected_mrc) / client_mrc * 100) if client_mrc > 0 else 0
 
-                recommendations.append({
-                    'priority': 1,
-                    'strategy': f"Negotiate renewal with {current_vendor} (Conservative Scenario)",
-                    'rationale': f"High renewal success rate ({renewal_stats['success_rate']:.1f}%). Conservative estimate using average discount of {renewal_stats['avg_discount']:.1f}%",
-                    'expected_discount': round(avg_expected_discount, 1),
-                    'expected_mrc': round(avg_expected_mrc, 2),
-                    'expected_gm': round(avg_expected_gm, 1),
-                    'confidence': 'high' if renewal_stats['success_rate'] >= 70 else 'medium'
-                })
+                # Only add if GM improves
+                if avg_expected_gm > current_gm:
+                    recommendations.append({
+                        'priority': 1,
+                        'strategy': f"Negotiate renewal with {current_vendor} (Conservative Scenario)",
+                        'rationale': f"High renewal success rate ({renewal_stats['success_rate']:.1f}%). Conservative estimate using average discount of {renewal_stats['avg_discount']:.1f}%",
+                        'expected_discount': round(avg_expected_discount, 1),
+                        'expected_mrc': round(avg_expected_mrc, 2),
+                        'expected_gm': round(avg_expected_gm, 1),
+                        'confidence': 'high' if renewal_stats['success_rate'] >= 70 else 'medium'
+                    })
 
                 # Scenario B: Using maximum discount (best case)
                 max_expected_discount = renewal_stats['max_discount']
                 max_expected_mrc = current_mrc * (1 - max_expected_discount/100)
                 max_expected_gm = ((client_mrc - max_expected_mrc) / client_mrc * 100) if client_mrc > 0 else 0
 
-                recommendations.append({
-                    'priority': 2,
-                    'strategy': f"Negotiate renewal with {current_vendor} (Best Case Scenario)",
-                    'rationale': f"Best case scenario using maximum historical discount of {renewal_stats['max_discount']:.1f}%. This represents the best discount previously achieved with this vendor.",
-                    'expected_discount': round(max_expected_discount, 1),
-                    'expected_mrc': round(max_expected_mrc, 2),
-                    'expected_gm': round(max_expected_gm, 1),
-                    'confidence': 'medium'
-                })
+                # Only add if GM improves
+                if max_expected_gm > current_gm:
+                    recommendations.append({
+                        'priority': 2,
+                        'strategy': f"Negotiate renewal with {current_vendor} (Best Case Scenario)",
+                        'rationale': f"Best case scenario using maximum historical discount of {renewal_stats['max_discount']:.1f}%. This represents the best discount previously achieved with this vendor.",
+                        'expected_discount': round(max_expected_discount, 1),
+                        'expected_mrc': round(max_expected_mrc, 2),
+                        'expected_gm': round(max_expected_gm, 1),
+                        'confidence': 'medium'
+                    })
             else:
                 recommendations.append({
                     'priority': 1,
@@ -791,7 +801,8 @@ def api_analyze_renewal():
         current_vendor_vpls = [v for v in response['vpl_options'] if v['is_current_vendor']]
         if current_vendor_vpls:
             best_current_vpl = min(current_vendor_vpls, key=lambda x: x['mrc'])
-            if best_current_vpl['mrc'] < current_mrc_in_service_currency:
+            # Only recommend if MRC is lower AND GM is better than current
+            if best_current_vpl['mrc'] < current_mrc_in_service_currency and best_current_vpl['gm'] > current_gm:
                 savings = current_mrc_in_service_currency - best_current_vpl['mrc']
                 savings_pct = (savings / current_mrc_in_service_currency * 100) if current_mrc_in_service_currency > 0 else 0
 
@@ -810,7 +821,8 @@ def api_analyze_renewal():
         if alternative_vendor_vpls:
             # Find best alternative VPL
             best_alt_vpl = min(alternative_vendor_vpls, key=lambda x: x['mrc'])
-            if best_alt_vpl['mrc'] < current_mrc_in_service_currency:
+            # Only recommend if MRC is lower AND GM is better than current
+            if best_alt_vpl['mrc'] < current_mrc_in_service_currency and best_alt_vpl['gm'] > current_gm:
                 savings = current_mrc_in_service_currency - best_alt_vpl['mrc']
                 savings_pct = (savings / current_mrc_in_service_currency * 100) if current_mrc_in_service_currency > 0 else 0
 
