@@ -585,10 +585,11 @@ class QuickbaseClient:
                     client_mrc = float(client_mrc_value) if client_mrc_value is not None else 0.0
                     currency = voc.get('702', {}).get('value')
 
-                    # Fallback: If Field 397 is not available, try Services table
-                    if not client_mrc or client_mrc == 0:
+                    # Fallback: If Field 397 or currency not available, try Services table
+                    if (not client_mrc or client_mrc == 0) or not currency:
                         service_data = self.get_service_mrc(service_id)
-                        client_mrc = service_data.get('mrc', 0)
+                        if not client_mrc or client_mrc == 0:
+                            client_mrc = service_data.get('mrc', 0)
                         if not currency:
                             currency = service_data.get('currency')
 
