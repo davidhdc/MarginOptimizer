@@ -524,11 +524,13 @@ def api_analyze_renewal():
             return jsonify({'error': f'No VOC Line found for service {service_id}'}), 404
 
         current_vendor = voc_line['vendor_name']
-        current_mrc = voc_line['mrc_usd']
+        vendor_mrc = voc_line['vendor_mrc']  # In local currency
+        vendor_mrc_usd = voc_line['vendor_mrc_usd']  # In USD
         current_gm = voc_line['gm_percent']
 
         # Get client MRC and currency from VOC Line (accurate source)
-        client_mrc = voc_line.get('client_mrc', 0)
+        client_mrc = voc_line.get('client_mrc', 0)  # In local currency
+        client_mrc_usd = voc_line.get('client_mrc_usd', 0)  # In USD
         service_currency = voc_line.get('currency') or service.get('service_currency', 'USD')
         
         # Get renewal statistics for current vendor
@@ -578,14 +580,17 @@ def api_analyze_renewal():
             'voc_line': {
                 'record_id': voc_line['record_id'],
                 'vendor_name': current_vendor,
-                'current_mrc': current_mrc,
+                'vendor_mrc': vendor_mrc,  # Vendor MRC in local currency
+                'vendor_mrc_usd': vendor_mrc_usd,  # Vendor MRC in USD
                 'current_gm_percent': current_gm,
-                'current_gm_usd': voc_line['gm_usd'],
+                'current_gm_local': voc_line['gm_local'],  # GM in local currency
+                'current_gm_usd': voc_line['gm_usd'],  # GM in USD
                 'status': voc_line['status'],
                 'bandwidth': voc_line['bandwidth'],
                 'service_type': voc_line['service_type'],
                 'lead_time': voc_line['lead_time'],
-                'nrc_usd': voc_line['nrc_usd']
+                'nrc': voc_line['nrc'],  # NRC in local currency
+                'nrc_usd': voc_line['nrc_usd']  # NRC in USD
             },
             'current_vendor_stats': {
                 'renewal_stats': None,

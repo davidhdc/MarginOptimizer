@@ -53,8 +53,20 @@ function showRenewalError(message) {
 
 function displayRenewalResults(data) {
     // Update quick summary
+    const currency = data.service.currency || 'USD';
+    const isUSD = currency.toUpperCase() === 'USD';
+
     document.getElementById('currentVendorName').textContent = data.voc_line.vendor_name;
-    document.getElementById('currentMrc').textContent = '$' + data.voc_line.current_mrc.toFixed(2);
+
+    // Display Vendor MRC in local currency and USD
+    if (isUSD) {
+        document.getElementById('currentMrc').textContent = '$' + data.voc_line.vendor_mrc_usd.toFixed(2) + ' USD';
+    } else {
+        document.getElementById('currentMrc').textContent =
+            '$' + data.voc_line.vendor_mrc.toFixed(2) + ' ' + currency +
+            ' ($' + data.voc_line.vendor_mrc_usd.toFixed(2) + ' USD)';
+    }
+
     document.getElementById('currentGm').textContent = data.voc_line.current_gm_percent.toFixed(1) + '%';
     document.getElementById('renewalQuickSummary').style.display = 'block';
 
@@ -79,9 +91,19 @@ function displayRenewalResults(data) {
 function displayVocLineInfo(data) {
     const service = data.service;
     const voc = data.voc_line;
+    const currency = service.currency || 'USD';
+    const isUSD = currency.toUpperCase() === 'USD';
 
     const gmClass = voc.current_gm_percent >= 50 ? 'success' :
                    voc.current_gm_percent >= 40 ? 'warning' : 'danger';
+
+    // Format Vendor MRC display
+    let vendorMrcDisplay;
+    if (isUSD) {
+        vendorMrcDisplay = `$${voc.vendor_mrc_usd.toFixed(2)} USD`;
+    } else {
+        vendorMrcDisplay = `$${voc.vendor_mrc.toFixed(2)} ${currency} <small class="text-muted">($${voc.vendor_mrc_usd.toFixed(2)} USD)</small>`;
+    }
 
     const html = `
         <div class="row">
@@ -89,11 +111,11 @@ function displayVocLineInfo(data) {
                 <p><strong>Service ID:</strong> ${service.service_id}</p>
                 <p><strong>Customer:</strong> ${service.customer}</p>
                 <p><strong>Bandwidth:</strong> ${service.bandwidth_display}</p>
-                <p><strong>Client MRC:</strong> $${service.client_mrc.toFixed(2)} ${service.currency}</p>
+                <p><strong>Client MRC:</strong> $${service.client_mrc.toFixed(2)} ${currency}</p>
             </div>
             <div class="col-md-6">
                 <p><strong>Current Vendor:</strong> <span class="badge bg-primary">${voc.vendor_name}</span></p>
-                <p><strong>Vendor MRC:</strong> $${voc.current_mrc.toFixed(2)} USD</p>
+                <p><strong>Vendor MRC:</strong> ${vendorMrcDisplay}</p>
                 <p><strong>Gross Margin:</strong> <span class="badge bg-${gmClass}">${voc.current_gm_percent.toFixed(1)}%</span></p>
                 <p><strong>Status:</strong> ${voc.status}</p>
             </div>

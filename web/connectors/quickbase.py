@@ -574,7 +574,7 @@ class QuickbaseClient:
                     # Get the most recent VOC Line (first in sorted results)
                     voc = records[0]
                     vendor_mrc_value = voc.get('135', {}).get('value')
-                    vendor_mrc_usd = float(vendor_mrc_value) if vendor_mrc_value is not None else 0.0
+                    vendor_mrc = float(vendor_mrc_value) if vendor_mrc_value is not None else 0.0
 
                     # Get Client MRC - PRIMARY SOURCE: Field 397 from VOC Line
                     # This is the actual service MRC that the client pays
@@ -591,30 +591,50 @@ class QuickbaseClient:
 
                     # Calculate GM dynamically from latest Quickbase data
                     # GM% = ((Client MRC - Vendor MRC) / Client MRC) * 100
+                    # Both values are in local currency (from Field 135 and Field 397)
                     gm_percent = 0.0
-                    gm_usd = 0.0
+                    gm_local = 0.0
 
                     if client_mrc and client_mrc > 0:
-                        gm_usd = client_mrc - vendor_mrc_usd
-                        gm_percent = (gm_usd / client_mrc) * 100
+                        gm_local = client_mrc - vendor_mrc
+                        gm_percent = (gm_local / client_mrc) * 100
+
+                    # Convert to USD if currency is BRL
+                    vendor_mrc_usd = vendor_mrc
+                    client_mrc_usd = client_mrc
+                    gm_usd = gm_local
+                    brl_rate = None
+
+                    if currency and currency.upper() == 'BRL':
+                        from utils.currency import get_usd_to_brl_rate
+                        brl_rate = get_usd_to_brl_rate()
+                        if brl_rate and brl_rate > 0:
+                            vendor_mrc_usd = vendor_mrc / brl_rate
+                            client_mrc_usd = client_mrc / brl_rate
+                            gm_usd = gm_local / brl_rate
 
                     nrc_value = voc.get('136', {}).get('value')
-                    nrc_usd = float(nrc_value) if nrc_value is not None else 0.0
+                    nrc = float(nrc_value) if nrc_value is not None else 0.0
+                    nrc_usd = nrc / brl_rate if (brl_rate and brl_rate > 0) else nrc
 
                     return {
                         'has_data': True,
                         'record_id': voc.get('3', {}).get('value'),
                         'service_id': voc.get('234', {}).get('value'),
                         'vendor_name': voc.get('245', {}).get('value'),
-                        'mrc_usd': vendor_mrc_usd,
+                        'vendor_mrc': vendor_mrc,  # Vendor MRC in local currency
+                        'vendor_mrc_usd': vendor_mrc_usd,  # Vendor MRC in USD
                         'status': voc.get('254', {}).get('value'),
                         'gm_percent': gm_percent,  # Calculated dynamically
-                        'gm_usd': gm_usd,  # Calculated dynamically
+                        'gm_local': gm_local,  # GM in local currency
+                        'gm_usd': gm_usd,  # GM in USD
                         'bandwidth': voc.get('246', {}).get('value'),
                         'service_type': voc.get('247', {}).get('value'),
                         'lead_time': voc.get('248', {}).get('value'),
-                        'nrc_usd': nrc_usd,
-                        'client_mrc': client_mrc,  # From Field 397 (primary) or Services table (fallback)
+                        'nrc': nrc,  # NRC in local currency
+                        'nrc_usd': nrc_usd,  # NRC in USD
+                        'client_mrc': client_mrc,  # Client MRC in local currency (from Field 397)
+                        'client_mrc_usd': client_mrc_usd,  # Client MRC in USD
                         'currency': currency  # Service currency
                     }
                 else:
