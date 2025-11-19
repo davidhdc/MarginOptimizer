@@ -557,9 +557,13 @@ def api_analyze_renewal():
             include_nearby=True,
             radius_meters=10000
         )
-        
+
         nearby = vendor_quotes.get('nearby', [])
         vpl = vendor_quotes.get('vpl', [])
+
+        print(f"DEBUG: Service {service_id} - Found {len(nearby)} nearby VQs from Neo4j")
+        if nearby:
+            print(f"DEBUG: First nearby VQ: {nearby[0]}")
 
         # Get service bandwidth in bps for filtering
         # Try Neo4j first, then fallback to Quickbase services table
@@ -636,8 +640,11 @@ def api_analyze_renewal():
         
         # Process nearby quotes (all vendors within 10km)
         nearby = convert_neo4j_types(nearby)
+        print(f"DEBUG: After convert_neo4j_types, nearby has {len(nearby)} VQs")
+
         for vq in nearby:
             if vq.get('distance_meters', 0) > 10000:  # 10km for renewals
+                print(f"DEBUG: Skipping VQ - distance {vq.get('distance_meters')} > 10km")
                 continue
 
             # Include all vendors, not just current vendor
@@ -647,6 +654,8 @@ def api_analyze_renewal():
 
             # Mark if it's the same vendor
             is_same_vendor = (vendor_name == current_vendor)
+
+            print(f"DEBUG: Adding VQ - vendor: {vendor_name}, distance: {vq.get('distance_meters')}m, is_same: {is_same_vendor}")
 
             response['nearby_quotes'].append({
                 'service_id': vq.get('service_id'),
@@ -659,6 +668,8 @@ def api_analyze_renewal():
                 'bandwidth': vq.get('bandwidth', 'N/A'),
                 'service_type': vq.get('service_type', 'N/A')
             })
+
+        print(f"DEBUG: Final nearby_quotes count: {len(response['nearby_quotes'])}")
         
         # Process VPL options - filter by service bandwidth
         service_is_usd = (service_currency == 'USD')
