@@ -634,24 +634,30 @@ def api_analyze_renewal():
         if renewal_history.get('has_data'):
             response['current_vendor_stats']['renewal_history'] = renewal_history['renewals'][:10]  # Last 10
         
-        # Process nearby quotes (same vendor, different services)
+        # Process nearby quotes (all vendors within 10km)
         nearby = convert_neo4j_types(nearby)
         for vq in nearby:
-            if vq.get('distance_meters', 0) > 2000:  # 2km for renewals
+            if vq.get('distance_meters', 0) > 10000:  # 10km for renewals
                 continue
-            
-            if vq.get('vendor_name') != current_vendor:
-                continue  # Only show same vendor
-            
+
+            # Include all vendors, not just current vendor
+            vendor_name = vq.get('vendor_name', 'Unknown')
             vq_mrc = vq.get('mrc', 0)
             gm = ((client_mrc - vq_mrc) / client_mrc * 100) if client_mrc > 0 else 0
-            
+
+            # Mark if it's the same vendor
+            is_same_vendor = (vendor_name == current_vendor)
+
             response['nearby_quotes'].append({
                 'service_id': vq.get('service_id'),
+                'vendor_name': vendor_name,
+                'is_same_vendor': is_same_vendor,
                 'mrc': round(vq_mrc, 2),
                 'gm': round(gm, 1),
                 'distance_meters': round(vq.get('distance_meters', 0)),
-                'date_created': vq.get('date_created')
+                'date_created': vq.get('date_created'),
+                'bandwidth': vq.get('bandwidth', 'N/A'),
+                'service_type': vq.get('service_type', 'N/A')
             })
         
         # Process VPL options - filter by service bandwidth
@@ -801,24 +807,49 @@ def api_analyze_renewal():
                 })
 
         # Recommendation 3: Based on nearby quotes from same vendor
-        if response['nearby_quotes']:
-            # Find the best (lowest MRC) nearby quote
-            best_nearby = min(response['nearby_quotes'], key=lambda x: x['mrc'])
+        same_vendor_nearby = [q for q in response['nearby_quotes'] if q.get('is_same_vendor')]
+        if same_vendor_nearby:
+            # Find the best (lowest MRC) nearby quote from same vendor
+            best_nearby = min(same_vendor_nearby, key=lambda x: x['mrc'])
             # Only recommend if nearby MRC is lower than current MRC
             if best_nearby['mrc'] < current_mrc:
                 savings = current_mrc - best_nearby['mrc']
                 savings_pct = (savings / current_mrc * 100) if current_mrc > 0 else 0
                 # Calculate expected GM with nearby pricing
                 expected_gm_nearby = ((client_mrc - best_nearby['mrc']) / client_mrc * 100) if client_mrc > 0 else 0
+                distance_km = best_nearby['distance_meters'] / 1000
 
                 recommendations.append({
                     'priority': 3,
                     'strategy': f"Reference nearby pricing from {current_vendor}",
-                    'rationale': f"Nearby service ({best_nearby['service_id']}) at {best_nearby['distance_meters']}m has MRC of {best_nearby['mrc']:.2f} {service_currency} - {savings_pct:.1f}% lower than current. Use as negotiation leverage.",
+                    'rationale': f"Nearby service ({best_nearby['service_id']}) at {distance_km:.1f}km has MRC of {best_nearby['mrc']:.2f} {service_currency} ({best_nearby['bandwidth']}) - {savings_pct:.1f}% lower than current. Use as negotiation leverage.",
                     'expected_mrc': best_nearby['mrc'],
                     'expected_gm': round(expected_gm_nearby, 1),
                     'confidence': 'high',
                     'vendor_name': current_vendor
+                })
+
+        # Recommendation 3b: Based on nearby quotes from alternative vendors
+        alt_vendor_nearby = [q for q in response['nearby_quotes'] if not q.get('is_same_vendor')]
+        if alt_vendor_nearby:
+            # Find the best (lowest MRC) nearby quote from alternative vendors
+            best_alt_nearby = min(alt_vendor_nearby, key=lambda x: x['mrc'])
+            # Only recommend if nearby MRC is significantly lower
+            if best_alt_nearby['mrc'] < current_mrc:
+                savings = current_mrc - best_alt_nearby['mrc']
+                savings_pct = (savings / current_mrc * 100) if current_mrc > 0 else 0
+                expected_gm_alt_nearby = ((client_mrc - best_alt_nearby['mrc']) / client_mrc * 100) if client_mrc > 0 else 0
+                distance_km = best_alt_nearby['distance_meters'] / 1000
+
+                recommendations.append({
+                    'priority': 3.5,  # Between 3 and 4
+                    'strategy': f"Leverage nearby {best_alt_nearby['vendor_name']} quote as negotiation tool",
+                    'rationale': f"Alternative vendor {best_alt_nearby['vendor_name']} has a quote at {distance_km:.1f}km with MRC of {best_alt_nearby['mrc']:.2f} {service_currency} ({best_alt_nearby['bandwidth']}) - {savings_pct:.1f}% lower. Use as competitive leverage with {current_vendor} or consider switching.",
+                    'expected_mrc': best_alt_nearby['mrc'],
+                    'expected_gm': round(expected_gm_alt_nearby, 1),
+                    'confidence': 'medium',
+                    'vendor_name': best_alt_nearby['vendor_name'],
+                    'alternative_vendor': True
                 })
 
         # Recommendation 4: Based on VPL availability from current vendor

@@ -358,37 +358,64 @@ function displayNearbyQuotes(data) {
     }
 
     const currency = data.service.currency || 'USD';
-    const clientMrc = data.service.client_mrc;
+    const currentVendor = data.voc_line.vendor_name;
+
+    // Sort by distance first, then by MRC
+    const sortedQuotes = [...nearbyQuotes].sort((a, b) => {
+        // Same vendor quotes first
+        if (a.is_same_vendor !== b.is_same_vendor) {
+            return b.is_same_vendor - a.is_same_vendor;
+        }
+        // Then by distance
+        return a.distance_meters - b.distance_meters;
+    });
 
     let html = '';
 
-    nearbyQuotes.forEach(vq => {
+    sortedQuotes.forEach(vq => {
         const gm = vq.gm || 0;
         const gmClass = gm >= 50 ? 'success' : gm >= 40 ? 'warning' : 'danger';
-        const distanceMeters = vq.distance_meters || 0;
+        const distanceKm = ((vq.distance_meters || 0) / 1000).toFixed(1);
+        const vendorName = vq.vendor_name || 'Unknown';
+        const isSameVendor = vq.is_same_vendor;
+
+        // Different styling for same vendor vs alternative vendors
+        const cardClass = isSameVendor ? 'border-success' : 'border-info';
+        const vendorBadgeClass = isSameVendor ? 'bg-success' : 'bg-info';
+        const vendorLabel = isSameVendor ? '(Current Vendor)' : '(Alternative Vendor)';
 
         html += `
-            <div class="card mb-3">
+            <div class="card mb-3 ${cardClass}">
                 <div class="card-body">
                     <div class="row">
-                        <div class="col-md-8">
+                        <div class="col-md-12">
                             <h6 class="mb-2">
-                                <i class="fas fa-building"></i> ${vq.vendor_name || 'N/A'}
+                                <i class="fas fa-building"></i>
+                                <span class="badge ${vendorBadgeClass}">${vendorName}</span>
+                                <small class="text-muted ms-2">${vendorLabel}</small>
                                 <span class="badge bg-warning text-dark ms-2">
-                                    <i class="fas fa-map-marker-alt"></i> ${distanceMeters}m away
+                                    <i class="fas fa-map-marker-alt"></i> ${distanceKm} km away
                                 </span>
                             </h6>
-                            <div class="row">
-                                <div class="col-md-4">
+                            <div class="row mt-2">
+                                <div class="col-md-3">
                                     <small class="text-muted">Service ID:</small>
                                     <div class="fw-bold">${vq.service_id || 'N/A'}</div>
                                 </div>
-                                <div class="col-md-4">
+                                <div class="col-md-2">
+                                    <small class="text-muted">Bandwidth:</small>
+                                    <div class="fw-bold">${vq.bandwidth || 'N/A'}</div>
+                                </div>
+                                <div class="col-md-2">
+                                    <small class="text-muted">Service Type:</small>
+                                    <div class="small">${vq.service_type || 'N/A'}</div>
+                                </div>
+                                <div class="col-md-2">
                                     <small class="text-muted">MRC:</small>
                                     <div class="fw-bold text-success">$${vq.mrc.toFixed(2)} ${currency}</div>
                                 </div>
-                                <div class="col-md-4">
-                                    <small class="text-muted">GM:</small>
+                                <div class="col-md-2">
+                                    <small class="text-muted">Potential GM:</small>
                                     <div>
                                         <span class="badge bg-${gmClass}">${gm.toFixed(1)}%</span>
                                     </div>
@@ -397,7 +424,7 @@ function displayNearbyQuotes(data) {
                             <div class="row mt-2">
                                 <div class="col-md-12">
                                     <small class="text-muted">Date Created:</small>
-                                    <div class="small">${vq.date_created || 'N/A'}</div>
+                                    <span class="small ms-2">${vq.date_created || 'N/A'}</span>
                                 </div>
                             </div>
                         </div>
