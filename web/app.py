@@ -799,8 +799,29 @@ def api_analyze_renewal():
                     'expected_gm': round(max_expected_gm, 1),
                     'confidence': 'low' if renewal_stats['success_rate'] < 50 else 'medium'
                 })
-        
-        # Recommendation 3: Based on VPL availability from current vendor
+
+        # Recommendation 3: Based on nearby quotes from same vendor
+        if response['nearby_quotes']:
+            # Find the best (lowest MRC) nearby quote
+            best_nearby = min(response['nearby_quotes'], key=lambda x: x['mrc'])
+            # Only recommend if nearby MRC is lower than current MRC
+            if best_nearby['mrc'] < current_mrc:
+                savings = current_mrc - best_nearby['mrc']
+                savings_pct = (savings / current_mrc * 100) if current_mrc > 0 else 0
+                # Calculate expected GM with nearby pricing
+                expected_gm_nearby = ((client_mrc - best_nearby['mrc']) / client_mrc * 100) if client_mrc > 0 else 0
+
+                recommendations.append({
+                    'priority': 3,
+                    'strategy': f"Reference nearby pricing from {current_vendor}",
+                    'rationale': f"Nearby service ({best_nearby['service_id']}) at {best_nearby['distance_meters']}m has MRC of {best_nearby['mrc']:.2f} {service_currency} - {savings_pct:.1f}% lower than current. Use as negotiation leverage.",
+                    'expected_mrc': best_nearby['mrc'],
+                    'expected_gm': round(expected_gm_nearby, 1),
+                    'confidence': 'high',
+                    'vendor_name': current_vendor
+                })
+
+        # Recommendation 4: Based on VPL availability from current vendor
         current_vendor_vpls = [v for v in response['vpl_options'] if v['is_current_vendor']]
         if current_vendor_vpls:
             best_current_vpl = min(current_vendor_vpls, key=lambda x: x['mrc'])
@@ -812,7 +833,7 @@ def api_analyze_renewal():
                 expected_gm_vpl = ((client_mrc - best_current_vpl['mrc']) / client_mrc * 100) if client_mrc > 0 else 0
 
                 recommendations.append({
-                    'priority': 3,
+                    'priority': 4,
                     'strategy': f"Request VPL pricing from {current_vendor}",
                     'rationale': f"VPL available at {best_current_vpl['mrc']:.2f} {service_currency} ({best_current_vpl['bandwidth']}) - {savings_pct:.1f}% lower than current MRC",
                     'expected_mrc': best_current_vpl['mrc'],
@@ -821,7 +842,7 @@ def api_analyze_renewal():
                     'vendor_name': current_vendor
                 })
 
-        # Recommendation 4: Based on alternative vendor VPLs at same location
+        # Recommendation 5: Based on alternative vendor VPLs at same location
         alternative_vendor_vpls = [v for v in response['vpl_options'] if not v['is_current_vendor']]
         if alternative_vendor_vpls:
             # Find best alternative VPL (lowest MRC)
@@ -834,7 +855,7 @@ def api_analyze_renewal():
                 expected_gm_alt = ((client_mrc - best_alt_vpl['mrc']) / client_mrc * 100) if client_mrc > 0 else 0
 
                 recommendations.append({
-                    'priority': 4,
+                    'priority': 5,
                     'strategy': f"Leverage {best_alt_vpl['vendor_name']} VPL as negotiation leverage",
                     'rationale': f"Alternative vendor VPL at {best_alt_vpl['mrc']:.2f} {service_currency} ({best_alt_vpl['bandwidth']}) - {savings_pct:.1f}% lower. Use as leverage with {current_vendor} or consider switching",
                     'expected_mrc': best_alt_vpl['mrc'],
@@ -844,10 +865,10 @@ def api_analyze_renewal():
                     'alternative_vendor': True
                 })
 
-        # Recommendation 5: Market comparison - low margin alert
+        # Recommendation 6: Market comparison - low margin alert
         if current_gm < 40 and not alternative_vendor_vpls:
             recommendations.append({
-                'priority': 5,
+                'priority': 6,
                 'strategy': "Evaluate alternative vendors",
                 'rationale': f"Current gross margin ({current_gm:.1f}%) is below target (40%). No VPL alternatives found at this location.",
                 'confidence': 'medium'

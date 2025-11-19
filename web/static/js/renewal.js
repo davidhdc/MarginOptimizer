@@ -76,6 +76,9 @@ function displayRenewalResults(data) {
     // Display vendor statistics
     displayVendorStats(data);
 
+    // Display nearby quotes
+    displayNearbyQuotes(data);
+
     // Display recommendations
     displayRecommendations(data);
 
@@ -339,4 +342,71 @@ function displayRenewalVplOptions(data) {
         document.getElementById('renewalVplList').innerHTML = html;
         document.getElementById('renewalVplSection').style.display = 'block';
     }
+}
+
+function displayNearbyQuotes(data) {
+    const container = document.getElementById('renewalNearbyQuotesContainer');
+    const section = document.getElementById('renewalNearbyQuotesSection');
+
+    if (!container) return;
+
+    const nearbyQuotes = data.nearby_quotes || [];
+
+    if (nearbyQuotes.length === 0) {
+        section.style.display = 'none';
+        return;
+    }
+
+    const currency = data.service.currency || 'USD';
+    const clientMrc = data.service.client_mrc;
+
+    let html = '';
+
+    nearbyQuotes.forEach(vq => {
+        const gm = vq.gm || 0;
+        const gmClass = gm >= 50 ? 'success' : gm >= 40 ? 'warning' : 'danger';
+        const distanceMeters = vq.distance_meters || 0;
+
+        html += `
+            <div class="card mb-3">
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-8">
+                            <h6 class="mb-2">
+                                <i class="fas fa-building"></i> ${vq.vendor_name || 'N/A'}
+                                <span class="badge bg-warning text-dark ms-2">
+                                    <i class="fas fa-map-marker-alt"></i> ${distanceMeters}m away
+                                </span>
+                            </h6>
+                            <div class="row">
+                                <div class="col-md-4">
+                                    <small class="text-muted">Service ID:</small>
+                                    <div class="fw-bold">${vq.service_id || 'N/A'}</div>
+                                </div>
+                                <div class="col-md-4">
+                                    <small class="text-muted">MRC:</small>
+                                    <div class="fw-bold text-success">$${vq.mrc.toFixed(2)} ${currency}</div>
+                                </div>
+                                <div class="col-md-4">
+                                    <small class="text-muted">GM:</small>
+                                    <div>
+                                        <span class="badge bg-${gmClass}">${gm.toFixed(1)}%</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row mt-2">
+                                <div class="col-md-12">
+                                    <small class="text-muted">Date Created:</small>
+                                    <div class="small">${vq.date_created || 'N/A'}</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+
+    container.innerHTML = html;
+    section.style.display = 'block';
 }
