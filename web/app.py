@@ -801,17 +801,19 @@ def api_analyze_renewal():
         current_vendor_vpls = [v for v in response['vpl_options'] if v['is_current_vendor']]
         if current_vendor_vpls:
             best_current_vpl = min(current_vendor_vpls, key=lambda x: x['mrc'])
-            # Only recommend if MRC is lower AND GM is better than current
-            if best_current_vpl['mrc'] < current_mrc_in_service_currency and best_current_vpl['gm'] > current_gm:
+            # Only recommend if VPL MRC is lower than current vendor MRC
+            if best_current_vpl['mrc'] < current_mrc_in_service_currency:
                 savings = current_mrc_in_service_currency - best_current_vpl['mrc']
                 savings_pct = (savings / current_mrc_in_service_currency * 100) if current_mrc_in_service_currency > 0 else 0
+                # Calculate expected GM with VPL pricing
+                expected_gm_vpl = ((client_mrc - best_current_vpl['mrc']) / client_mrc * 100) if client_mrc > 0 else 0
 
                 recommendations.append({
                     'priority': 3,
                     'strategy': f"Request VPL pricing from {current_vendor}",
                     'rationale': f"VPL available at {best_current_vpl['mrc']:.2f} {service_currency} ({best_current_vpl['bandwidth']}) - {savings_pct:.1f}% lower than current MRC",
                     'expected_mrc': best_current_vpl['mrc'],
-                    'expected_gm': best_current_vpl['gm'],
+                    'expected_gm': round(expected_gm_vpl, 1),
                     'confidence': 'high',
                     'vendor_name': current_vendor
                 })
@@ -819,19 +821,21 @@ def api_analyze_renewal():
         # Recommendation 4: Based on alternative vendor VPLs at same location
         alternative_vendor_vpls = [v for v in response['vpl_options'] if not v['is_current_vendor']]
         if alternative_vendor_vpls:
-            # Find best alternative VPL
+            # Find best alternative VPL (lowest MRC)
             best_alt_vpl = min(alternative_vendor_vpls, key=lambda x: x['mrc'])
-            # Only recommend if MRC is lower AND GM is better than current
-            if best_alt_vpl['mrc'] < current_mrc_in_service_currency and best_alt_vpl['gm'] > current_gm:
+            # Only recommend if alternative VPL MRC is lower than current vendor MRC
+            if best_alt_vpl['mrc'] < current_mrc_in_service_currency:
                 savings = current_mrc_in_service_currency - best_alt_vpl['mrc']
                 savings_pct = (savings / current_mrc_in_service_currency * 100) if current_mrc_in_service_currency > 0 else 0
+                # Calculate expected GM with alternative VPL pricing
+                expected_gm_alt = ((client_mrc - best_alt_vpl['mrc']) / client_mrc * 100) if client_mrc > 0 else 0
 
                 recommendations.append({
                     'priority': 4,
                     'strategy': f"Leverage {best_alt_vpl['vendor_name']} VPL as negotiation leverage",
                     'rationale': f"Alternative vendor VPL at {best_alt_vpl['mrc']:.2f} {service_currency} ({best_alt_vpl['bandwidth']}) - {savings_pct:.1f}% lower. Use as leverage with {current_vendor} or consider switching",
                     'expected_mrc': best_alt_vpl['mrc'],
-                    'expected_gm': best_alt_vpl['gm'],
+                    'expected_gm': round(expected_gm_alt, 1),
                     'confidence': 'medium',
                     'vendor_name': best_alt_vpl['vendor_name'],
                     'alternative_vendor': True
