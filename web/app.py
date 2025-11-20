@@ -551,19 +551,25 @@ def api_analyze_renewal():
         # Get negotiation stats for current vendor (from VQ creation)
         negotiation_stats = get_vendor_stats_cached(current_vendor)
         
-        # Get vendor quotes (nearby and VPL options)
+        # Get vendor quotes (associated, nearby and VPL options)
         vendor_quotes = neo4j_client.get_vendor_quotes_for_service(
             service_id,
             include_nearby=True,
             radius_meters=10000
         )
 
+        associated = vendor_quotes.get('associated', [])
         nearby = vendor_quotes.get('nearby', [])
         vpl = vendor_quotes.get('vpl', [])
 
-        app.logger.info(f"DEBUG: Service {service_id} - Found {len(nearby)} nearby VQs from Neo4j")
+        app.logger.info(f"DEBUG: Service {service_id} - Found {len(associated)} associated, {len(nearby)} nearby VQs from Neo4j")
         if nearby:
             app.logger.info(f"DEBUG: First nearby VQ: {nearby[0]}")
+
+        # Combine associated quotes with nearby quotes for display
+        # Associated quotes are quotes directly related to this service's task
+        all_nearby_quotes = associated + nearby
+        app.logger.info(f"DEBUG: Total quotes to process (associated + nearby): {len(all_nearby_quotes)}")
 
         # Get service bandwidth in bps for filtering
         # Try Neo4j first, then fallback to Quickbase services table
@@ -638,13 +644,17 @@ def api_analyze_renewal():
         if renewal_history.get('has_data'):
             response['current_vendor_stats']['renewal_history'] = renewal_history['renewals'][:10]  # Last 10
         
-        # Process nearby quotes (all vendors within 10km)
-        nearby = convert_neo4j_types(nearby)
-        app.logger.info(f"DEBUG: After convert_neo4j_types, nearby has {len(nearby)} VQs")
+        # Process all quotes (associated + nearby from all vendors within 10km)
+        all_nearby_quotes = convert_neo4j_types(all_nearby_quotes)
+        app.logger.info(f"DEBUG: After convert_neo4j_types, all_nearby_quotes has {len(all_nearby_quotes)} VQs")
 
-        for vq in nearby:
-            if vq.get('distance_meters', 0) > 10000:  # 10km for renewals
-                app.logger.info(f"DEBUG: Skipping VQ - distance {vq.get('distance_meters')} > 10km")
+        for vq in all_nearby_quotes:
+            distance_meters = vq.get('distance_meters')
+
+            # Skip if distance is defined and > 10km (nearby quotes only)
+            # Associated quotes don't have distance, so we include them
+            if distance_meters is not None and distance_meters > 10000:
+                app.logger.info(f"DEBUG: Skipping VQ - distance {distance_meters} > 10km")
                 continue
 
             # Include all vendors, not just current vendor
@@ -655,18 +665,23 @@ def api_analyze_renewal():
             # Mark if it's the same vendor
             is_same_vendor = (vendor_name == current_vendor)
 
-            app.logger.info(f"DEBUG: Adding VQ - vendor: {vendor_name}, distance: {vq.get('distance_meters')}m, is_same: {is_same_vendor}")
+            # Mark if this is an associated VQ (directly related to service)
+            is_associated = (distance_meters is None)
+
+            app.logger.info(f"DEBUG: Adding VQ - vendor: {vendor_name}, distance: {distance_meters}, is_associated: {is_associated}, is_same: {is_same_vendor}")
 
             response['nearby_quotes'].append({
-                'service_id': vq.get('service_id'),
+                'service_id': vq.get('service_id', service_id),  # Use current service_id if not set
                 'vendor_name': vendor_name,
                 'is_same_vendor': is_same_vendor,
+                'is_associated': is_associated,
                 'mrc': round(vq_mrc, 2),
                 'gm': round(gm, 1),
-                'distance_meters': round(vq.get('distance_meters', 0)),
+                'distance_meters': round(distance_meters) if distance_meters is not None else 0,
                 'date_created': vq.get('date_created'),
                 'bandwidth': vq.get('bandwidth', 'N/A'),
-                'service_type': vq.get('service_type', 'N/A')
+                'service_type': vq.get('service_type', 'N/A'),
+                'quickbase_id': vq.get('quickbase_id')
             })
 
         app.logger.info(f"DEBUG: Final nearby_quotes count: {len(response['nearby_quotes'])}")

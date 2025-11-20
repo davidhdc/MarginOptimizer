@@ -380,9 +380,10 @@ function displayNearbyQuotes(data) {
         const isSameVendor = vq.is_same_vendor;
 
         // Different styling for same vendor vs alternative vendors
-        const cardClass = isSameVendor ? 'border-success' : 'border-info';
+        const isAssociated = vq.is_associated || false;
+        const cardClass = isAssociated ? 'border-primary' : (isSameVendor ? 'border-success' : 'border-info');
         const vendorBadgeClass = isSameVendor ? 'bg-success' : 'bg-info';
-        const vendorLabel = isSameVendor ? '(Current Vendor)' : '(Alternative Vendor)';
+        const vendorLabel = isAssociated ? '(Quote for this service)' : (isSameVendor ? '(Current Vendor)' : '(Alternative Vendor)');
 
         html += `
             <div class="card mb-3 ${cardClass}">
@@ -393,9 +394,9 @@ function displayNearbyQuotes(data) {
                                 <i class="fas fa-building"></i>
                                 <span class="badge ${vendorBadgeClass}">${vendorName}</span>
                                 <small class="text-muted ms-2">${vendorLabel}</small>
-                                <span class="badge bg-warning text-dark ms-2">
+                                ${!isAssociated ? `<span class="badge bg-warning text-dark ms-2">
                                     <i class="fas fa-map-marker-alt"></i> ${distanceKm} km away
-                                </span>
+                                </span>` : '<span class="badge bg-primary ms-2"><i class="fas fa-link"></i> Direct Quote</span>'}
                             </h6>
                             <div class="row mt-2">
                                 <div class="col-md-3">
