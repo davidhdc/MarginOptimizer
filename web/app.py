@@ -779,11 +779,9 @@ def api_analyze_renewal():
         # Generate renewal recommendations
         recommendations = []
 
-        # Convert current_mrc to service currency for fair comparisons with VPLs
-        if service_is_usd:
-            current_mrc_in_service_currency = current_mrc
-        else:
-            current_mrc_in_service_currency = current_mrc * vpl_exchange_rate
+        # current_mrc is already in service currency (vendor_mrc from Quickbase)
+        # No conversion needed - it's already in the same currency as the service
+        current_mrc_in_service_currency = current_mrc
 
         # Recommendation 1 & 2: Based on renewal history
         if renewal_stats and renewal_stats.get('has_data'):
