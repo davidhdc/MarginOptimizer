@@ -882,7 +882,11 @@ def api_analyze_renewal():
         current_vendor_vpls = [v for v in response['vpl_options'] if v['is_current_vendor']]
         if current_vendor_vpls:
             best_current_vpl = min(current_vendor_vpls, key=lambda x: x['mrc'])
-            # Only recommend if VPL MRC is lower than current vendor MRC
+
+            app.logger.info(f"DEBUG Rec#4: VPL MRC={best_current_vpl['mrc']}, current_mrc_in_service_currency={current_mrc_in_service_currency}, current_mrc={current_mrc}, vendor_mrc={vendor_mrc}")
+
+            # Only recommend if VPL MRC is lower than current vendor MRC (NOT client MRC)
+            # This is the price the vendor would charge vs what they're charging now
             if best_current_vpl['mrc'] < current_mrc_in_service_currency:
                 savings = current_mrc_in_service_currency - best_current_vpl['mrc']
                 savings_pct = (savings / current_mrc_in_service_currency * 100) if current_mrc_in_service_currency > 0 else 0
@@ -892,7 +896,7 @@ def api_analyze_renewal():
                 recommendations.append({
                     'priority': 4,
                     'strategy': f"Request VPL pricing from {current_vendor}",
-                    'rationale': f"VPL available at {best_current_vpl['mrc']:.2f} {service_currency} ({best_current_vpl['bandwidth']}) - {savings_pct:.1f}% lower than current MRC",
+                    'rationale': f"VPL available at {best_current_vpl['mrc']:.2f} {service_currency} ({best_current_vpl['bandwidth']}) - {savings_pct:.1f}% lower than current vendor MRC ({current_mrc_in_service_currency:.2f} {service_currency})",
                     'expected_mrc': best_current_vpl['mrc'],
                     'expected_gm': round(expected_gm_vpl, 1),
                     'confidence': 'high',
